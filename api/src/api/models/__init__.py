@@ -21,6 +21,7 @@ from .course import (
     RosterMemberResponse,
     UpdateCourseRequest,
 )
+from .exam_pdf import ExamPdfUploadResponse
 from .joke_generation import CreateJokeRequest, JokeResponse
 from .roster_upload import RosterUploadResponse, RosterUploadStatusResponse
 from .user_profile import UpdateProfileRequest, UserProfile
@@ -32,6 +33,7 @@ __all__ = [
     "CourseMembership",
     "CourseResponse",
     "CreateCourseRequest",
+    "ExamPdfUploadResponse",
     "CreateIyowActivityRequest",
     "CreateJokeRequest",
     "IyowActivityResponse",

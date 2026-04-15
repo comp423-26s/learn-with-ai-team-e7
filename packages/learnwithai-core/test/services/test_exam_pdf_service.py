@@ -29,19 +29,22 @@ def _build_service(
 
 
 def _make_user(pid: int = 123456789) -> User:
-    return User.model_construct(_fields_set=None, pid=pid, name="Test User", onyen="testuser")
+    mock = MagicMock(spec=User)
+    mock.pid = pid
+    mock.name = "Test User"
+    mock.onyen = "testuser"
+    return mock  # type: ignore[return-value]
 
 
 def _make_course(course_id: int = 1) -> Course:
-    return Course.model_construct(
-        _fields_set=None,
-        id=course_id,
-        course_number="COMP101",
-        name="Intro to CS",
-        description="",
-        term=Term.FALL,
-        year=2026,
-    )
+    mock = MagicMock(spec=Course)
+    mock.id = course_id
+    mock.course_number = "COMP101"
+    mock.name = "Intro to CS"
+    mock.description = ""
+    mock.term = Term.FALL
+    mock.year = 2026
+    return mock  # type: ignore[return-value]
 
 
 def _make_membership(
@@ -106,6 +109,18 @@ def test_upload_pdf_raises_for_non_enrolled_member() -> None:
 
     with pytest.raises(AuthorizationError):
         service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF-1.7")
+
+
+def test_upload_pdf_raises_for_unpersisted_course() -> None:
+    membership_repo = MagicMock(spec=MembershipRepository)
+    membership_repo.get_by_user_and_course.return_value = _make_membership()
+    service = _build_service(membership_repo=membership_repo)
+
+    course = _make_course()
+    course.id = None
+
+    with pytest.raises(ValueError, match="Course must be persisted"):
+        service.upload_pdf(_make_user(), course, "exam.pdf", b"%PDF-1.7")
 
 
 def test_upload_pdf_raises_runtime_error_when_storage_fails() -> None:

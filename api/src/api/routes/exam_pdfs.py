@@ -88,7 +88,7 @@ def _validate_filename(filename: str | None, uploader_pid: int, course_id: int |
         return
     logger.warning(
         "Rejected exam PDF upload due to missing .pdf extension",
-        extra={"filename": filename, "uploader_pid": uploader_pid, "course_id": course_id},
+        extra={"upload_filename": filename, "uploader_pid": uploader_pid, "course_id": course_id},
     )
     raise HTTPException(status_code=400, detail="Filename must end with .pdf.")
 

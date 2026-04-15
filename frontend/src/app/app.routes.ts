@@ -113,6 +113,13 @@ export const routes: Routes = [
                     (m) => m.JokeGenerator,
                   ),
               },
+              {
+                path: 'grading-analyzer',
+                loadComponent: () =>
+                  import('./courses/course-detail/tools/grading-analyzer/grading-analyzer.component').then(
+                    (m) => m.GradingAnalyzer,
+                  ),
+              },
             ],
           },
           {

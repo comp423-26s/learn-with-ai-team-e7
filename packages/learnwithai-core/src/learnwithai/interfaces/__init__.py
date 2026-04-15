@@ -11,6 +11,7 @@ from .jobs import (
     SupportsJobType,
     TrackedJob,
 )
+from .storage import ObjectStorage
 
 __all__ = [
     "Job",
@@ -19,6 +20,7 @@ __all__ = [
     "JobQueue",
     "JobUpdate",
     "NotifierCloseable",
+    "ObjectStorage",
     "SupportsJobType",
     "TrackedJob",
 ]

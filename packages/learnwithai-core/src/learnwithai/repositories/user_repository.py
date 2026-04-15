@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Kris Jordan
-# SPDX-License-Identifier: MIT
-
 """Persistence helpers for user records."""
 
 from sqlmodel import select

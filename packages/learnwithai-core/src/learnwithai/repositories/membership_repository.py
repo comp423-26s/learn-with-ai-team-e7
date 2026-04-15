@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Kris Jordan
-# SPDX-License-Identifier: MIT
-
 """Persistence helpers for membership (user-course join) records."""
 
 from sqlalchemy import String, func, or_

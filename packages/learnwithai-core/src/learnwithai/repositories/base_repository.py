@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Kris Jordan
-# SPDX-License-Identifier: MIT
-
 """Shared SQLModel repository primitives."""
 
 from abc import ABC, abstractmethod

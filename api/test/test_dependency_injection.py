@@ -13,6 +13,8 @@ from api.di import (
     activity_service_factory,
     async_job_repository_factory,
     course_repository_factory,
+    exam_pdf_service_factory,
+    exam_pdf_upload_repository_factory,
     get_activity_by_path_id,
     get_course_by_path_id,
     get_user_by_pid,
@@ -22,6 +24,7 @@ from api.di import (
     iyow_submission_service_factory,
     joke_generation_service_factory,
     joke_repository_factory,
+    object_storage_factory,
     roster_upload_service_factory,
     submission_repository_factory,
 )
@@ -101,6 +104,16 @@ def test_async_job_repository_factory_returns_repository() -> None:
     assert isinstance(result, AsyncJobRepository)
 
 
+def test_exam_pdf_upload_repository_factory_returns_repository() -> None:
+    from learnwithai.repositories.exam_pdf_upload_repository import ExamPdfUploadRepository
+
+    session = MagicMock()
+
+    result = exam_pdf_upload_repository_factory(session)
+
+    assert isinstance(result, ExamPdfUploadRepository)
+
+
 def test_roster_upload_service_factory_returns_service() -> None:
     from learnwithai.services.roster_upload_service import RosterUploadService
 
@@ -112,6 +125,41 @@ def test_roster_upload_service_factory_returns_service() -> None:
     result = roster_upload_service_factory(async_job_repo, user_repo, membership_repo, job_queue)
 
     assert isinstance(result, RosterUploadService)
+
+
+def test_exam_pdf_service_factory_returns_service() -> None:
+    from learnwithai.services.exam_pdf_service import ExamPdfService
+
+    result = exam_pdf_service_factory(MagicMock(), MagicMock(), MagicMock())
+
+    assert isinstance(result, ExamPdfService)
+
+
+def test_object_storage_factory_raises_without_bucket() -> None:
+    settings = MagicMock()
+    settings.storage_s3_bucket = None
+    settings.storage_s3_region = "us-east-1"
+    settings.storage_s3_endpoint = None
+    settings.storage_s3_key_prefix = ""
+
+    with pytest.raises(HTTPException) as exc_info:
+        object_storage_factory(settings)
+
+    assert exc_info.value.status_code == 500
+
+
+def test_object_storage_factory_returns_s3_storage() -> None:
+    from learnwithai.services.s3_object_storage import S3ObjectStorage
+
+    settings = MagicMock()
+    settings.storage_s3_bucket = "bucket-a"
+    settings.storage_s3_region = "us-east-1"
+    settings.storage_s3_endpoint = None
+    settings.storage_s3_key_prefix = "prefix"
+
+    result = object_storage_factory(settings)
+
+    assert isinstance(result, S3ObjectStorage)
 
 
 def test_joke_generation_service_factory_returns_service() -> None:

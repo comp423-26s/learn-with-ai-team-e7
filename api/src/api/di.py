@@ -14,11 +14,12 @@ from learnwithai.activities.iyow.service import IyowActivityService
 from learnwithai.activities.iyow.submission_service import IyowSubmissionService
 from learnwithai.config import Settings, get_settings
 from learnwithai.db import get_session
-from learnwithai.interfaces import JobQueue
+from learnwithai.interfaces import JobQueue, ObjectStorage
 from learnwithai.pagination import PaginationParams
 from learnwithai.repositories.activity_repository import ActivityRepository
 from learnwithai.repositories.async_job_repository import AsyncJobRepository
 from learnwithai.repositories.course_repository import CourseRepository
+from learnwithai.repositories.exam_pdf_upload_repository import ExamPdfUploadRepository
 from learnwithai.repositories.membership_repository import MembershipRepository
 from learnwithai.repositories.submission_repository import SubmissionRepository
 from learnwithai.repositories.user_repository import UserRepository
@@ -28,7 +29,9 @@ from learnwithai.services.csxl_auth_service import (
     AuthenticationException,
     CSXLAuthService,
 )
+from learnwithai.services.exam_pdf_service import ExamPdfService
 from learnwithai.services.roster_upload_service import RosterUploadService
+from learnwithai.services.s3_object_storage import S3ObjectStorage
 from learnwithai.tables.activity import Activity
 from learnwithai.tables.course import Course
 from learnwithai.tables.user import User
@@ -47,6 +50,8 @@ __all__ = [
     "CourseByCourseIDPathDI",
     "CourseRepositoryDI",
     "CourseServiceDI",
+    "ExamPdfServiceDI",
+    "ExamPdfUploadRepositoryDI",
     "IyowActivityRepositoryDI",
     "IyowActivityServiceDI",
     "IyowSubmissionRepositoryDI",
@@ -55,6 +60,7 @@ __all__ = [
     "JokeRepositoryDI",
     "JobQueueDI",
     "MembershipRepositoryDI",
+    "ObjectStorageDI",
     "PaginationParamsDI",
     "SessionDI",
     "SettingsDI",
@@ -66,6 +72,8 @@ __all__ = [
     "async_job_repository_factory",
     "course_repository_factory",
     "course_service_factory",
+    "exam_pdf_service_factory",
+    "exam_pdf_upload_repository_factory",
     "csxl_auth_service_factory",
     "get_activity_by_path_id",
     "get_authenticated_user",
@@ -81,6 +89,7 @@ __all__ = [
     "joke_repository_factory",
     "job_queue_factory",
     "membership_repository_factory",
+    "object_storage_factory",
     "roster_upload_service_factory",
     "settings_factory",
     "submission_repository_factory",
@@ -147,6 +156,17 @@ def async_job_repository_factory(session: SessionDI) -> AsyncJobRepository:
 AsyncJobRepositoryDI: TypeAlias = Annotated[AsyncJobRepository, Depends(async_job_repository_factory)]
 
 
+def exam_pdf_upload_repository_factory(session: SessionDI) -> ExamPdfUploadRepository:
+    """Constructs an exam PDF upload repository for the current session."""
+    return ExamPdfUploadRepository(session)
+
+
+ExamPdfUploadRepositoryDI: TypeAlias = Annotated[
+    ExamPdfUploadRepository,
+    Depends(exam_pdf_upload_repository_factory),
+]
+
+
 def joke_repository_factory(session: SessionDI) -> JokeRepository:
     """Constructs a joke repository bound to the current request session."""
     return JokeRepository(session)
@@ -206,6 +226,21 @@ def job_queue_factory(session: SessionDI) -> JobQueue:
 
 
 JobQueueDI: TypeAlias = Annotated[JobQueue, Depends(job_queue_factory)]
+
+
+def object_storage_factory(settings: SettingsDI) -> ObjectStorage:
+    """Creates an object storage adapter from application settings."""
+    if not settings.storage_s3_bucket:
+        raise HTTPException(status_code=500, detail="S3 storage is not configured.")
+    return S3ObjectStorage(
+        bucket=settings.storage_s3_bucket,
+        region=settings.storage_s3_region,
+        endpoint_url=settings.storage_s3_endpoint,
+        key_prefix=settings.storage_s3_key_prefix,
+    )
+
+
+ObjectStorageDI: TypeAlias = Annotated[ObjectStorage, Depends(object_storage_factory)]
 
 
 def get_course_by_path_id(course_id: Annotated[int, Path()], course_repo: CourseRepositoryDI) -> Course:
@@ -295,6 +330,18 @@ def roster_upload_service_factory(
 
 
 RosterUploadServiceDI: TypeAlias = Annotated[RosterUploadService, Depends(roster_upload_service_factory)]
+
+
+def exam_pdf_service_factory(
+    exam_pdf_upload_repo: ExamPdfUploadRepositoryDI,
+    membership_repo: MembershipRepositoryDI,
+    object_storage: ObjectStorageDI,
+) -> ExamPdfService:
+    """Creates the exam PDF service for the current request."""
+    return ExamPdfService(exam_pdf_upload_repo, membership_repo, object_storage)
+
+
+ExamPdfServiceDI: TypeAlias = Annotated[ExamPdfService, Depends(exam_pdf_service_factory)]
 
 
 def joke_generation_service_factory(

@@ -6,6 +6,7 @@
 from api.routes.activities import router as activities_router
 from api.routes.auth import router as auth_router
 from api.routes.courses import router as courses_router
+from api.routes.exam_pdfs import router as exam_pdfs_router
 from api.routes.health import router as health_router
 from api.routes.joke_generation import router as joke_generation_router
 from api.routes.me import router as me_router
@@ -18,6 +19,7 @@ API_ROUTERS = (
     me_router,
     courses_router,
     activities_router,
+    exam_pdfs_router,
     roster_uploads_router,
     joke_generation_router,
     operations_router,

@@ -1,6 +1,3 @@
-# Copyright (c) 2026 Kris Jordan
-# SPDX-License-Identifier: MIT
-
 """Persistence helpers for unified async job records."""
 
 from sqlmodel import select

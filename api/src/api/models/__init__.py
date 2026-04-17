@@ -29,6 +29,7 @@ from .job_control import (
     QueueMessagePreviewResponse,
     WorkerInfoResponse,
 )
+from .exam_pdf import ExamPdfUploadResponse
 from .joke_generation import CreateJokeRequest, JokeResponse
 from .metrics import UsageMetricsResponse
 from .operator import (
@@ -49,6 +50,7 @@ __all__ = [
     "CourseMembership",
     "CourseResponse",
     "CreateCourseRequest",
+    "ExamPdfUploadResponse",
     "CreateIyowActivityRequest",
     "CreateJokeRequest",
     "GrantOperatorRequest",

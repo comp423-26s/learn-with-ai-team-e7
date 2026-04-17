@@ -32,6 +32,7 @@ def test_interfaces_export_job_class() -> None:
     exported_job_type_protocol = interfaces.SupportsJobType
     exported_job_update = interfaces.JobUpdate
     exported_job_notifier = interfaces.JobNotifier
+    exported_object_storage = interfaces.ObjectStorage
 
     # Assert
     assert exported_names == [
@@ -41,6 +42,7 @@ def test_interfaces_export_job_class() -> None:
         "JobQueue",
         "JobUpdate",
         "NotifierCloseable",
+        "ObjectStorage",
         "SupportsJobType",
         "TrackedJob",
     ]
@@ -48,6 +50,7 @@ def test_interfaces_export_job_class() -> None:
     assert exported_job_type_protocol is SupportsJobType
     assert issubclass(exported_job_update, BaseModel)
     assert exported_job_notifier is not None
+    assert exported_object_storage is not None
 
 
 def test_echo_job_satisfies_read_only_job_type_protocol() -> None:

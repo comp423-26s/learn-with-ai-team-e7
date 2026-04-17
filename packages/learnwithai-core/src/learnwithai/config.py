@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     api_port: int = 8000
     log_level: str = "INFO"
 
+    # Document storage
+    storage_s3_bucket: str | None = None
+    storage_s3_region: str = "us-east-1"
+    storage_s3_endpoint: str | None = None
+    storage_s3_key_prefix: str = ""
+
     # Auth
     unc_auth_server_host: str = "csxl.unc.edu"
     host: str = "localhost:4200"

@@ -22,6 +22,7 @@ from .course import (
     UpdateCourseRequest,
     UpdateMemberRoleRequest,
 )
+from .exam_pdf import ExamPdfUploadResponse
 from .job_control import (
     JobControlOverviewResponse,
     JobFailuresResponse,
@@ -29,7 +30,6 @@ from .job_control import (
     QueueMessagePreviewResponse,
     WorkerInfoResponse,
 )
-from .exam_pdf import ExamPdfUploadResponse
 from .joke_generation import CreateJokeRequest, JokeResponse
 from .metrics import UsageMetricsResponse
 from .operator import (

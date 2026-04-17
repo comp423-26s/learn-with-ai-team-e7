@@ -1,0 +1,68 @@
+@if (errorMessage()) {
+  <p role="alert" class="error-message">{{ errorMessage() }}</p>
+}
+
+@if (uploadSuccess()) {
+  <mat-card class="success-card" appearance="outlined">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="success-icon">check_circle</mat-icon>
+      <mat-card-title>Upload successful!</mat-card-title>
+      <mat-card-subtitle>Your exam is being analyzed.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-actions align="end">
+      <button mat-button (click)="onReset()">Upload another</button>
+    </mat-card-actions>
+  </mat-card>
+} @else {
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="upload-form">
+    <mat-form-field appearance="outline">
+      <mat-label>Assignment name</mat-label>
+      <input
+        matInput
+        formControlName="assignmentName"
+        placeholder="e.g. Exam
+  1"
+      />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Your score</mat-label>
+      <input
+        matInput
+        type="number"
+        formControlName="score"
+        placeholder="e.g.
+  85"
+      />
+    </mat-form-field>
+
+    <div class="file-input-area">
+      <button mat-stroked-button type="button" (click)="fileInput.click()">
+        <mat-icon>upload_file</mat-icon>
+        Choose PDF
+      </button>
+      <span class="file-name">
+        {{ selectedFile() ? selectedFile()!.name : 'No file chosen' }}
+      </span>
+      <input
+        #fileInput
+        type="file"
+        accept=".pdf"
+        class="hidden-input"
+        (change)="onFileSelected($event)"
+      />
+    </div>
+
+    <button
+      mat-flat-button
+      type="submit"
+      [disabled]="form.invalid || !selectedFile() || uploading()"
+    >
+      @if (uploading()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        Upload
+      }
+    </button>
+  </form>
+}

@@ -119,9 +119,7 @@ describe('GradingAnalyzer', () => {
 
   it('should accept a file via the DOM change event on the file input (line 52)', async () => {
     const { fixture } = await setup();
-    const fileInput = fixture.nativeElement.querySelector(
-      'input[type="file"]',
-    ) as HTMLInputElement;
+    const fileInput = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
 
     const file = new File(['pdf'], 'via-dom.pdf', { type: 'application/pdf' });
     Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
@@ -136,9 +134,7 @@ describe('GradingAnalyzer', () => {
     const chooseBtn = fixture.nativeElement.querySelector(
       'button[type="button"]',
     ) as HTMLButtonElement;
-    const fileInput = fixture.nativeElement.querySelector(
-      'input[type="file"]',
-    ) as HTMLInputElement;
+    const fileInput = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
     const clickSpy = vi.spyOn(fileInput, 'click');
 
     chooseBtn.click();
@@ -211,9 +207,7 @@ describe('GradingAnalyzer', () => {
     component['uploadSuccess'].set(true);
     fixture.detectChanges();
 
-    const uploadAnotherBtn = fixture.nativeElement.querySelector(
-      'button',
-    ) as HTMLButtonElement;
+    const uploadAnotherBtn = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
     uploadAnotherBtn.click();
     fixture.detectChanges();
 

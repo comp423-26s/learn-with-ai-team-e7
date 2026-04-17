@@ -25,7 +25,10 @@ from api.di import (
     job_control_service_factory,
     joke_generation_service_factory,
     joke_repository_factory,
+    metrics_service_factory,
     object_storage_factory,
+    operator_repository_factory,
+    operator_service_factory,
     roster_upload_service_factory,
     submission_repository_factory,
 )

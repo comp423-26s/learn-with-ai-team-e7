@@ -1,0 +1,186 @@
+<!--
+  Copyright (c) 2026 Kris Jordan
+  SPDX-License-Identifier: MIT
+-->
+
+@if (errorMessage()) {
+  <p role="alert">{{ errorMessage() }}</p>
+}
+
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading student dashboard analysis" />
+} @else {
+  <section class="space-y-6" aria-label="Student analysis dashboard">
+    <mat-card appearance="outlined">
+      <mat-card-content class="grid gap-6 p-6 lg:grid-cols-[220px_1fr] lg:items-center">
+        <div class="flex justify-center">
+          <div
+            class="flex h-40 w-40 items-center justify-center rounded-full p-4 shadow-sm"
+            [style.background]="progressRingBackground()"
+            aria-label="Completion progress ring"
+          >
+            <div
+              class="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center"
+            >
+              <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">Progress</p>
+              <p class="text-3xl font-semibold">{{ completionRate() * 100 | number: '1.0-0' }}%</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">Student snapshot</p>
+          <h2 class="text-3xl leading-tight font-semibold">You're making steady progress.</h2>
+          <p class="max-w-2xl text-base text-slate-600">
+            This view highlights the topics you have already completed and the ones that still need
+            attention so you can focus your next submission.
+          </p>
+          <div class="flex flex-wrap gap-3 pt-2">
+            <span
+              class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-800"
+            >
+              {{ strengths().length }} strengths
+            </span>
+            <span class="rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800">
+              {{ weaknesses().length }} weaknesses
+            </span>
+            <span class="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">
+              {{ feedbackCoverage() * 100 | number: '1.0-0' }}% feedback coverage
+            </span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <p class="text-sm opacity-75">Topics analyzed</p>
+          <p class="mt-2 text-2xl font-semibold">{{ analyzedTopicCount() }}</p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <p class="text-sm opacity-75">Completion rate</p>
+          <p class="mt-2 text-2xl font-semibold">{{ completionRate() * 100 | number: '1.0-0' }}%</p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <p class="text-sm opacity-75">Feedback coverage</p>
+          <p class="mt-2 text-2xl font-semibold">
+            {{ feedbackCoverage() * 100 | number: '1.0-0' }}%
+          </p>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2">
+      <mat-card appearance="outlined" aria-label="Strength topics">
+        <mat-card-header>
+          <mat-card-title>Strengths</mat-card-title>
+          <mat-card-subtitle>Topics you have submitted</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @if (strengths().length > 0) {
+            <ul class="space-y-3">
+              @for (topic of strengths(); track topic.id) {
+                <li class="rounded-lg border border-emerald-200 p-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="font-medium">{{ topic.topic }}</p>
+                    <span
+                      class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
+                    >
+                      Strength
+                    </span>
+                  </div>
+                  <p class="mt-2 text-sm opacity-80">
+                    {{ topic.feedbackAvailable ? 'Feedback available' : 'Submission complete' }}
+                  </p>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="text-sm opacity-75">
+              No strengths detected yet. Submit activities to build progress.
+            </p>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card appearance="outlined" aria-label="Weakness topics">
+        <mat-card-header>
+          <mat-card-title>Weaknesses</mat-card-title>
+          <mat-card-subtitle>Topics missing a submission</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @if (weaknesses().length > 0) {
+            <ul class="space-y-3">
+              @for (topic of weaknesses(); track topic.id) {
+                <li class="rounded-lg border border-amber-200 p-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="font-medium">{{ topic.topic }}</p>
+                    <span
+                      class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900"
+                    >
+                      Weakness
+                    </span>
+                  </div>
+                  <p class="mt-2 text-sm opacity-80">No submission yet.</p>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="text-sm opacity-75">
+              No weaknesses detected. Great work staying on top of submissions.
+            </p>
+          }
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <mat-card appearance="outlined" aria-label="Topic breakdown">
+      <mat-card-header>
+        <mat-card-title>Topic breakdown</mat-card-title>
+        <mat-card-subtitle>Submission status by topic</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (topics().length > 0) {
+          <ul class="space-y-4">
+            @for (topic of topics(); track topic.id) {
+              <li>
+                <div class="mb-2 flex items-center justify-between gap-3">
+                  <p class="font-medium">{{ topic.topic }}</p>
+                  <span
+                    class="rounded-full px-2 py-1 text-xs font-medium"
+                    [class.bg-emerald-100]="topic.label === 'strength'"
+                    [class.text-emerald-800]="topic.label === 'strength'"
+                    [class.bg-amber-100]="topic.label === 'weakness'"
+                    [class.text-amber-900]="topic.label === 'weakness'"
+                  >
+                    {{ topic.label === 'strength' ? 'Strength' : 'Weakness' }}
+                  </span>
+                </div>
+                <div class="h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                  <div
+                    class="h-full rounded-full"
+                    [class.bg-emerald-500]="topic.label === 'strength'"
+                    [class.bg-amber-500]="topic.label === 'weakness'"
+                    [style.width.%]="topic.completionPercent"
+                  ></div>
+                </div>
+                <p class="mt-1 text-sm opacity-80">
+                  {{ topic.completionPercent === 100 ? 'Submitted' : 'Not submitted' }}
+                </p>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-sm opacity-75">No activity data is available for this course yet.</p>
+        }
+      </mat-card-content>
+    </mat-card>
+  </section>
+}

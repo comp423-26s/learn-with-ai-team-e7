@@ -33,7 +33,6 @@ export class GradingAnalyzer {
   private fb = inject(FormBuilder);
   private titleService = inject(PageTitleService);
 
-  // course ID pulled from the URL (e.g. /courses/3/tools/grading-analyzer → 3)
   protected readonly courseId: number;
 
   // signals = reactive state — when these change, Angular updates the UI automatically
@@ -50,8 +49,21 @@ export class GradingAnalyzer {
 
   constructor() {
     this.titleService.setTitle('Grading Analyzer');
-    // get to "courses/:id" and read the ID
-    this.courseId = Number(this.route.parent?.parent?.snapshot.paramMap.get('id'));
+    this.courseId = this.resolveCourseId();
+  }
+
+  private resolveCourseId(): number {
+    let currentRoute: ActivatedRoute | null = this.route;
+
+    while (currentRoute) {
+      const id = currentRoute.snapshot.paramMap.get('id');
+      if (id) {
+        return Number(id);
+      }
+      currentRoute = currentRoute.parent;
+    }
+
+    return Number.NaN;
   }
 
   /** when the user picks a file, validatype and size before storing it. */

@@ -123,6 +123,20 @@ export const routes: Routes = [
             ],
           },
           {
+            path: 'student/tools/grading-analyzer',
+            loadComponent: () =>
+              import('./courses/course-detail/tools/grading-analyzer/grading-analyzer.component').then(
+                (m) => m.GradingAnalyzer,
+              ),
+          },
+          {
+            path: 'student/tools',
+            loadComponent: () =>
+              import('./courses/course-detail/student/student-tools.component').then(
+                (m) => m.StudentTools,
+              ),
+          },
+          {
             path: 'settings',
             loadComponent: () =>
               import('./courses/course-detail/settings/settings.component').then((m) => m.Settings),

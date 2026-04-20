@@ -20,9 +20,26 @@ from .course import (
     PaginatedRosterResponse,
     RosterMemberResponse,
     UpdateCourseRequest,
+    UpdateMemberRoleRequest,
 )
 from .exam_pdf import ExamPdfUploadResponse
+from .job_control import (
+    JobControlOverviewResponse,
+    JobFailuresResponse,
+    QueueInfoResponse,
+    QueueMessagePreviewResponse,
+    WorkerInfoResponse,
+)
 from .joke_generation import CreateJokeRequest, JokeResponse
+from .metrics import UsageMetricsResponse
+from .operator import (
+    GrantOperatorRequest,
+    ImpersonationTokenResponse,
+    OperatorProfile,
+    OperatorResponse,
+    UpdateOperatorRoleRequest,
+    UserSearchResult,
+)
 from .roster_upload import RosterUploadResponse, RosterUploadStatusResponse
 from .user_profile import UpdateProfileRequest, UserProfile
 
@@ -36,18 +53,31 @@ __all__ = [
     "ExamPdfUploadResponse",
     "CreateIyowActivityRequest",
     "CreateJokeRequest",
+    "GrantOperatorRequest",
+    "ImpersonationTokenResponse",
     "IyowActivityResponse",
     "IyowSubmissionResponse",
+    "JobControlOverviewResponse",
+    "JobFailuresResponse",
     "JokeResponse",
     "MembershipResponse",
+    "OperatorProfile",
+    "OperatorResponse",
     "PaginatedRosterResponse",
+    "QueueMessagePreviewResponse",
+    "QueueInfoResponse",
     "RosterMemberResponse",
     "RosterUploadResponse",
     "RosterUploadStatusResponse",
     "StudentSubmissionRow",
     "SubmitIyowRequest",
+    "UpdateMemberRoleRequest",
     "UpdateCourseRequest",
     "UpdateIyowActivityRequest",
+    "UpdateOperatorRoleRequest",
     "UpdateProfileRequest",
+    "UsageMetricsResponse",
     "UserProfile",
+    "WorkerInfoResponse",
+    "UserSearchResult",
 ]

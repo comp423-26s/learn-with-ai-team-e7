@@ -9,6 +9,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import ParseResult, urlparse
 
 from pydantic import AliasChoices, Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -51,6 +52,9 @@ class Settings(BaseSettings):
 
     # Queue / broker
     rabbitmq_url: str | None = None
+    rabbitmq_management_url: str | None = None
+    rabbitmq_management_user: str | None = None
+    rabbitmq_management_password: str | None = None
 
     # App / API
     api_host: str = "0.0.0.0"
@@ -137,6 +141,45 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
+    def effective_rabbitmq_management_url(self) -> str:
+        """Returns the configured RabbitMQ Management API URL or a derived default."""
+        if self.rabbitmq_management_url:
+            return self.rabbitmq_management_url
+
+        parsed_rabbitmq_url = self._parsed_rabbitmq_url()
+        if parsed_rabbitmq_url.hostname:
+            return f"http://{parsed_rabbitmq_url.hostname}:15672"
+
+        return "http://rabbitmq:15672"
+
+    @computed_field
+    @property
+    def effective_rabbitmq_management_user(self) -> str:
+        """Returns the configured RabbitMQ Management API user or a derived default."""
+        if self.rabbitmq_management_user:
+            return self.rabbitmq_management_user
+
+        parsed_rabbitmq_url = self._parsed_rabbitmq_url()
+        if parsed_rabbitmq_url.username:
+            return parsed_rabbitmq_url.username
+
+        return "guest"
+
+    @computed_field
+    @property
+    def effective_rabbitmq_management_password(self) -> str:
+        """Returns the configured RabbitMQ Management API password or a derived default."""
+        if self.rabbitmq_management_password:
+            return self.rabbitmq_management_password
+
+        parsed_rabbitmq_url = self._parsed_rabbitmq_url()
+        if parsed_rabbitmq_url.password:
+            return parsed_rabbitmq_url.password
+
+        return "guest"
+
+    @computed_field
+    @property
     def is_development(self) -> bool:
         """Reports whether the current environment is development."""
         return self.environment == "development"
@@ -152,6 +195,10 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Reports whether the current environment is production."""
         return self.environment == "production"
+
+    def _parsed_rabbitmq_url(self) -> ParseResult:
+        """Returns the parsed effective RabbitMQ URL."""
+        return urlparse(self.effective_rabbitmq_url)
 
 
 @lru_cache

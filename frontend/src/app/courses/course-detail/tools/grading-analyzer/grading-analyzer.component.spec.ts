@@ -1,0 +1,246 @@
+/*
+ * Copyright (c) 2026 Kris Jordan
+ * SPDX-License-Identifier: MIT
+ */
+
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { GradingAnalyzer } from './grading-analyzer.component';
+import { GradingAnalyzerService } from '../grading-analyzer.service';
+import { PageTitleService } from '../../../../page-title.service';
+
+const flush = () => new Promise((resolve) => setTimeout(resolve));
+
+describe('GradingAnalyzer', () => {
+  async function setup(options: { uploadError?: boolean } = {}) {
+    const mockService = {
+      uploadExam: options.uploadError
+        ? vi.fn(() => Promise.reject(new Error('fail')))
+        : vi.fn(() => Promise.resolve({ submissionId: 42 })),
+    };
+
+    const mockRoute = {
+      parent: {
+        parent: { snapshot: { paramMap: new Map([['id', '3']]) } },
+      },
+    };
+
+    TestBed.configureTestingModule({
+      imports: [GradingAnalyzer, NoopAnimationsModule],
+      providers: [
+        provideRouter([]),
+        { provide: GradingAnalyzerService, useValue: mockService },
+        { provide: PageTitleService, useValue: { setTitle: vi.fn() } },
+        { provide: ActivatedRoute, useValue: mockRoute },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(GradingAnalyzer);
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    return { fixture, mockService };
+  }
+
+  it('should set the page title', async () => {
+    await setup();
+    const titleService = TestBed.inject(PageTitleService);
+    expect(titleService.setTitle).toHaveBeenCalledWith('Grading Analyzer');
+  });
+
+  it('should read the course ID from the route', async () => {
+    const { fixture } = await setup();
+    expect(fixture.componentInstance['courseId']).toBe(3);
+  });
+
+  it('should show the upload form by default', async () => {
+    const { fixture } = await setup();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('form')).toBeTruthy();
+    expect(el.textContent).toContain('Upload');
+  });
+
+  it('should reject a non-PDF file', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const file = new File(['text'], 'notes.txt', { type: 'text/plain' });
+    const event = { target: { files: [file] } } as unknown as Event;
+    component['onFileSelected'](event);
+    fixture.detectChanges();
+
+    expect(component['selectedFile']()).toBeNull();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('Only PDF files are accepted.');
+  });
+
+  it('should reject a PDF larger than 10 MB', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const bigContent = new Uint8Array(11 * 1024 * 1024);
+    const file = new File([bigContent], 'big.pdf', { type: 'application/pdf' });
+    const event = { target: { files: [file] } } as unknown as Event;
+    component['onFileSelected'](event);
+    fixture.detectChanges();
+
+    expect(component['selectedFile']()).toBeNull();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('File must be 10MB or smaller.');
+  });
+
+  it('should accept a valid PDF file', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    const event = { target: { files: [file] } } as unknown as Event;
+    component['onFileSelected'](event);
+    fixture.detectChanges();
+
+    expect(component['selectedFile']()).toBe(file);
+    expect(component['errorMessage']()).toBe('');
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('exam.pdf');
+  });
+
+  it('should do nothing when no file is in the event', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const event = { target: { files: [] } } as unknown as Event;
+    component['onFileSelected'](event);
+
+    expect(component['selectedFile']()).toBeNull();
+  });
+
+  it('should accept a file via the DOM change event on the file input (line 52)', async () => {
+    const { fixture } = await setup();
+    const fileInput = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+
+    const file = new File(['pdf'], 'via-dom.pdf', { type: 'application/pdf' });
+    Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+    fileInput.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['selectedFile']()).toBe(file);
+  });
+
+  it('should delegate to the hidden file input when Choose PDF is clicked (line 40)', async () => {
+    const { fixture } = await setup();
+    const chooseBtn = fixture.nativeElement.querySelector(
+      'button[type="button"]',
+    ) as HTMLButtonElement;
+    const fileInput = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click');
+
+    chooseBtn.click();
+
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it('should not submit when form is invalid', async () => {
+    const { fixture, mockService } = await setup();
+    const component = fixture.componentInstance;
+
+    // form is invalid (assignmentName is empty)
+    await component['onSubmit']();
+
+    expect(mockService.uploadExam).not.toHaveBeenCalled();
+  });
+
+  it('should not submit when no file is selected', async () => {
+    const { fixture, mockService } = await setup();
+    const component = fixture.componentInstance;
+
+    component['form'].setValue({ assignmentName: 'Exam 1', score: 90 });
+    // no file selected
+    await component['onSubmit']();
+
+    expect(mockService.uploadExam).not.toHaveBeenCalled();
+  });
+
+  it('should upload and show success state', async () => {
+    const { fixture, mockService } = await setup();
+    const component = fixture.componentInstance;
+
+    const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(file);
+    component['form'].setValue({ assignmentName: 'Exam 1', score: 88 });
+
+    const formEl = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    formEl.dispatchEvent(new Event('submit'));
+    await flush();
+    fixture.detectChanges();
+
+    expect(mockService.uploadExam).toHaveBeenCalledWith(3, file, 'Exam 1', 88);
+    expect(component['uploadSuccess']()).toBe(true);
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('Upload successful!');
+    expect(el.querySelector('form')).toBeNull();
+  });
+
+  it('should show error when upload fails', async () => {
+    const { fixture } = await setup({ uploadError: true });
+    const component = fixture.componentInstance;
+
+    const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(file);
+    component['form'].setValue({ assignmentName: 'Exam 1', score: 70 });
+
+    await component['onSubmit']();
+    fixture.detectChanges();
+
+    expect(component['uploadSuccess']()).toBe(false);
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.textContent).toContain('Upload failed. Please try again.');
+  });
+
+  it('should reset to upload form after success', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    component['uploadSuccess'].set(true);
+    fixture.detectChanges();
+
+    const uploadAnotherBtn = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    uploadAnotherBtn.click();
+    fixture.detectChanges();
+
+    expect(component['uploadSuccess']()).toBe(false);
+    expect(component['errorMessage']()).toBe('');
+    expect(component['selectedFile']()).toBeNull();
+    expect(fixture.nativeElement.querySelector('form')).toBeTruthy();
+  });
+
+  it('should show spinner while uploading', async () => {
+    let resolveUpload!: (value: { submissionId: number }) => void;
+    const { fixture, mockService } = await setup();
+    const component = fixture.componentInstance;
+
+    mockService.uploadExam.mockReturnValueOnce(
+      new Promise<{ submissionId: number }>((res) => {
+        resolveUpload = res;
+      }),
+    );
+
+    const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(file);
+    component['form'].setValue({ assignmentName: 'Exam 1', score: 75 });
+
+    const submitPromise = component['onSubmit']();
+    fixture.detectChanges();
+
+    expect(component['uploading']()).toBe(true);
+
+    resolveUpload({ submissionId: 1 });
+    await submitPromise;
+    fixture.detectChanges();
+
+    expect(component['uploading']()).toBe(false);
+  });
+});

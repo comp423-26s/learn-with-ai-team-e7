@@ -1,0 +1,41 @@
+/*
+ * Copyright (c) 2026 Kris Jordan
+ * SPDX-License-Identifier: MIT
+ */
+
+:host {
+  box-sizing: border-box;
+  display: block;
+}
+
+.operators-actions {
+  margin-bottom: 16px;
+}
+
+.operators-table {
+  min-width: 36rem;
+  width: 100%;
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.role-select {
+  width: 140px;
+}
+
+.permission-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 2px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: var(--mat-sys-surface-container, #e0e0e0);
+  color: var(--mat-sys-on-surface, #333);
+}
+
+.error-message {
+  color: var(--mat-sys-error, #b00020);
+}

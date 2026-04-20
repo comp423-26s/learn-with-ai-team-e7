@@ -11,9 +11,7 @@ from sqlmodel import Field, SQLModel
 class ExamPdfText(SQLModel, table=True):
     """Represents extracted text for an uploaded exam PDF."""
 
-    __table_args__ = (
-        Index("ix_exam_pdf_text_upload_id", "upload_id"),
-    )
+    __table_args__ = (Index("ix_exam_pdf_text_upload_id", "upload_id"),)
 
     id: int | None = Field(
         default=None,
@@ -26,8 +24,6 @@ class ExamPdfText(SQLModel, table=True):
         sa_column=Column(Text, nullable=False),
     )
     extracted_at: datetime = Field(
-        sa_column=Column(
-            DateTime(timezone=True), server_default=func.now(), nullable=False
-        ),
+        sa_column=Column(DateTime(timezone=True), server_default=func.now(), nullable=False),
         default=None,
     )

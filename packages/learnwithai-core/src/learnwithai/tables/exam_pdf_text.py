@@ -26,6 +26,8 @@ class ExamPdfText(SQLModel, table=True):
         sa_column=Column(Text, nullable=False),
     )
     extracted_at: datetime = Field(
-        sa_column=Column(DateTime(timezone=True), server_default=func.now(), nullable=False),
+        sa_column=Column(
+            DateTime(timezone=True), server_default=func.now(), nullable=False
+        ),
         default=None,
     )

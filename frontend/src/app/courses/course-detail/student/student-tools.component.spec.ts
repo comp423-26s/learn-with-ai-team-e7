@@ -5,12 +5,12 @@
 
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Tools } from './tools.component';
+import { StudentTools } from './student-tools.component';
 import { PageTitleService } from '../../../page-title.service';
 import { LayoutNavigationService } from '../../../layout/layout-navigation.service';
 
-describe('Tools', () => {
-  it('should set the page title and render only instructor tools', () => {
+describe('StudentTools', () => {
+  it('should set the page title and render a Grading Analyzer card', () => {
     const mockPageTitle = {
       title: vi.fn(),
       setTitle: vi.fn(),
@@ -18,7 +18,7 @@ describe('Tools', () => {
     const mockLayoutNavigation = { clearContext: vi.fn() };
 
     TestBed.configureTestingModule({
-      imports: [Tools],
+      imports: [StudentTools],
       providers: [
         provideRouter([]),
         { provide: PageTitleService, useValue: mockPageTitle },
@@ -26,12 +26,11 @@ describe('Tools', () => {
       ],
     });
 
-    const fixture = TestBed.createComponent(Tools);
+    const fixture = TestBed.createComponent(StudentTools);
     fixture.detectChanges();
 
     expect(mockLayoutNavigation.clearContext).toHaveBeenCalled();
-    expect(mockPageTitle.setTitle).toHaveBeenCalledWith('Instructor Tools');
-    expect(fixture.nativeElement.textContent).toContain('Joke Generator');
-    expect(fixture.nativeElement.textContent).not.toContain('Grading Analyzer');
+    expect(mockPageTitle.setTitle).toHaveBeenCalledWith('Student Tools');
+    expect(fixture.nativeElement.textContent).toContain('Grading Analyzer');
   });
 });

@@ -174,6 +174,12 @@ describe('CourseDetail', () => {
               description: 'Review your course activities and assigned work',
               icon: 'assignment',
             },
+            {
+              route: '/courses/1/student/tools',
+              label: 'Student Tools',
+              description: 'Access student-facing course tools and workflows',
+              icon: 'build',
+            },
           ],
         },
       ],

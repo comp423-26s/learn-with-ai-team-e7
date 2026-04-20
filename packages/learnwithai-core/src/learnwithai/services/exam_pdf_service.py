@@ -5,15 +5,17 @@ from __future__ import annotations
 import io
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from ..errors import AuthorizationError
 from ..interfaces import ObjectStorage
-from ..repositories.exam_pdf_text_repository import ExamPdfTextRepository
+
+if TYPE_CHECKING:
+    from ..repositories.exam_pdf_text_repository import ExamPdfTextRepository
 from ..repositories.exam_pdf_upload_repository import ExamPdfUploadRepository
 from ..repositories.membership_repository import MembershipRepository
 from ..tables.course import Course
-from ..tables.exam_pdf_text import ExamPdfText
 from ..tables.exam_pdf_upload import ExamPdfUpload
 from ..tables.membership import MembershipState
 from ..tables.user import User
@@ -89,22 +91,36 @@ class ExamPdfService:
             extracted = self._extract_text_from_pdf(pdf_bytes)
             if extracted:
                 try:
+                    from ..tables.exam_pdf_text import ExamPdfText
+
                     self._exam_pdf_text_repo.create(
                         ExamPdfText(upload_id=upload.id, extracted_text=extracted)
                     )
                     logger.info(
                         "Extracted text stored for exam PDF",
-                        extra={"upload_id": upload.id, "course_id": course.id, "uploader_pid": subject.pid},
+                        extra={
+                            "upload_id": upload.id,
+                            "course_id": course.id,
+                            "uploader_pid": subject.pid,
+                        },
                     )
                 except Exception:
                     logger.exception(
                         "Failed to persist extracted text",
-                        extra={"upload_id": upload.id, "course_id": course.id, "uploader_pid": subject.pid},
+                        extra={
+                            "upload_id": upload.id,
+                            "course_id": course.id,
+                            "uploader_pid": subject.pid,
+                        },
                     )
         except Exception:
             logger.exception(
                 "PDF text extraction failed",
-                extra={"upload_id": getattr(upload, 'id', None), "course_id": course.id, "uploader_pid": subject.pid},
+                extra={
+                    "upload_id": getattr(upload, "id", None),
+                    "course_id": course.id,
+                    "uploader_pid": subject.pid,
+                },
             )
 
         return upload
@@ -125,7 +141,9 @@ class ExamPdfService:
 
             text = extract_text(io.BytesIO(pdf_bytes)) or ""
         except Exception:  # ImportError or runtime extraction error
-            logger.info("pdfminer.six not available or extraction failed; skipping typed extraction")
+            logger.info(
+                "pdfminer.six not available or extraction failed; skipping typed extraction"
+            )
             text = ""
 
         # If typed extraction yields little text, attempt OCR when optional deps are present.
@@ -140,6 +158,8 @@ class ExamPdfService:
                 if ocr_combined:
                     text = (text + "\n" + ocr_combined).strip()
             except Exception:
-                logger.info("OCR dependencies unavailable or OCR failed; skipping OCR fallback")
+                logger.info(
+                    "OCR dependencies unavailable or OCR failed; skipping OCR fallback"
+                )
 
         return text or ""

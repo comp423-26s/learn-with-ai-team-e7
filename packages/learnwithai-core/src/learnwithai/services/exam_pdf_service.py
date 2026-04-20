@@ -93,9 +93,7 @@ class ExamPdfService:
                 try:
                     from ..tables.exam_pdf_text import ExamPdfText
 
-                    self._exam_pdf_text_repo.create(
-                        ExamPdfText(upload_id=upload.id, extracted_text=extracted)
-                    )
+                    self._exam_pdf_text_repo.create(ExamPdfText(upload_id=upload.id, extracted_text=extracted))
                     logger.info(
                         "Extracted text stored for exam PDF",
                         extra={
@@ -141,9 +139,7 @@ class ExamPdfService:
 
             text = extract_text(io.BytesIO(pdf_bytes)) or ""
         except Exception:  # ImportError or runtime extraction error
-            logger.info(
-                "pdfminer.six not available or extraction failed; skipping typed extraction"
-            )
+            logger.info("pdfminer.six not available or extraction failed; skipping typed extraction")
             text = ""
 
         # If typed extraction yields little text, attempt OCR when optional deps are present.
@@ -158,8 +154,6 @@ class ExamPdfService:
                 if ocr_combined:
                     text = (text + "\n" + ocr_combined).strip()
             except Exception:
-                logger.info(
-                    "OCR dependencies unavailable or OCR failed; skipping OCR fallback"
-                )
+                logger.info("OCR dependencies unavailable or OCR failed; skipping OCR fallback")
 
         return text or ""

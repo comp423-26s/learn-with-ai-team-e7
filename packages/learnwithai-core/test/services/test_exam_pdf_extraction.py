@@ -64,9 +64,7 @@ def test_typed_extraction_persists_text(monkeypatch) -> None:
     pdfminer_mod.extract_text = lambda fp: "typed extracted content"
     sys.modules["pdfminer.high_level"] = pdfminer_mod
 
-    service = ExamPdfService(
-        upload_repo, membership_repo, object_storage, exam_pdf_text_repo
-    )
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
 
     service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF-1.7")
 
@@ -96,9 +94,7 @@ def test_ocr_fallback_persists_text_when_typed_empty(monkeypatch) -> None:
     pytesseract_mod.image_to_string = lambda img: "ocr extracted"
     sys.modules["pytesseract"] = pytesseract_mod
 
-    service = ExamPdfService(
-        upload_repo, membership_repo, object_storage, exam_pdf_text_repo
-    )
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
 
     service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF-1.7")
 
@@ -123,9 +119,7 @@ def test_extraction_failures_do_not_prevent_upload(monkeypatch) -> None:
     if "pytesseract" in sys.modules:
         del sys.modules["pytesseract"]
 
-    service = ExamPdfService(
-        upload_repo, membership_repo, object_storage, exam_pdf_text_repo
-    )
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
 
     service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF-1.7")
 

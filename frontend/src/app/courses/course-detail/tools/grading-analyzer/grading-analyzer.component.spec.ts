@@ -6,6 +6,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ActivatedRoute } from '@angular/router';
+import { convertToParamMap } from '@angular/router';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { GradingAnalyzer } from './grading-analyzer.component';
 import { GradingAnalyzerService } from '../grading-analyzer.service';
@@ -14,7 +15,7 @@ import { PageTitleService } from '../../../../page-title.service';
 const flush = () => new Promise((resolve) => setTimeout(resolve));
 
 describe('GradingAnalyzer', () => {
-  async function setup(options: { uploadError?: boolean } = {}) {
+  async function setup(options: { uploadError?: boolean; includeRouteId?: boolean } = {}) {
     const mockService = {
       uploadExam: options.uploadError
         ? vi.fn(() => Promise.reject(new Error('fail')))
@@ -22,8 +23,15 @@ describe('GradingAnalyzer', () => {
     };
 
     const mockRoute = {
+      snapshot: { paramMap: convertToParamMap({}) },
       parent: {
-        parent: { snapshot: { paramMap: new Map([['id', '3']]) } },
+        snapshot: { paramMap: convertToParamMap({}) },
+        parent: {
+          snapshot: {
+            paramMap: convertToParamMap(options.includeRouteId === false ? {} : { id: '3' }),
+          },
+          parent: null,
+        },
       },
     };
 
@@ -242,5 +250,11 @@ describe('GradingAnalyzer', () => {
     fixture.detectChanges();
 
     expect(component['uploading']()).toBe(false);
+  });
+
+  it('should fall back to NaN course id when route chain has no id', async () => {
+    const { fixture } = await setup({ includeRouteId: false });
+
+    expect(fixture.componentInstance['courseId']).toBeNaN();
   });
 });

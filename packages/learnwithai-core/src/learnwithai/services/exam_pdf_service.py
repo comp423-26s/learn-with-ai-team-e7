@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import io
 import logging
 from pathlib import Path
@@ -10,6 +11,7 @@ from uuid import uuid4
 
 from ..errors import AuthorizationError
 from ..interfaces import ObjectStorage
+from ..tables.exam_pdf_text import ExamPdfText
 
 if TYPE_CHECKING:
     from ..repositories.exam_pdf_text_repository import ExamPdfTextRepository
@@ -89,31 +91,25 @@ class ExamPdfService:
         # Best-effort text extraction for downstream analysis.
         try:
             extracted = self._extract_text_from_pdf(pdf_bytes)
-            if extracted:
-                try:
-                    from ..tables.exam_pdf_text import ExamPdfText
 
-                    self._exam_pdf_text_repo.create(ExamPdfText(upload_id=upload.id, extracted_text=extracted))
-                    logger.info(
-                        "Extracted text stored for exam PDF",
-                        extra={
-                            "upload_id": upload.id,
-                            "course_id": course.id,
-                            "uploader_pid": subject.pid,
-                        },
-                    )
-                except Exception:
-                    logger.exception(
-                        "Failed to persist extracted text",
-                        extra={
-                            "upload_id": upload.id,
-                            "course_id": course.id,
-                            "uploader_pid": subject.pid,
-                        },
-                    )
+            if not extracted.strip():
+                return upload
+
+            if upload.id is None:
+                raise ValueError("Persisted upload must include an id")
+
+            self._exam_pdf_text_repo.create(ExamPdfText(upload_id=upload.id, extracted_text=extracted))
+            logger.info(
+                "Extracted text stored for exam PDF",
+                extra={
+                    "upload_id": upload.id,
+                    "course_id": course.id,
+                    "uploader_pid": subject.pid,
+                },
+            )
         except Exception:
             logger.exception(
-                "PDF text extraction failed",
+                "PDF text extraction or persistence failed",
                 extra={
                     "upload_id": getattr(upload, "id", None),
                     "course_id": course.id,
@@ -135,9 +131,10 @@ class ExamPdfService:
         """
         # First, try typed text extraction with pdfminer.six if available.
         try:
-            from pdfminer.high_level import extract_text
+            pdfminer = importlib.import_module("pdfminer.high_level")
+            extract_text = getattr(pdfminer, "extract_text")
 
-            text = extract_text(io.BytesIO(pdf_bytes)) or ""
+            text = extract_text(io.BytesIO(pdf_bytes)) or ""  # type: ignore[misc]
         except Exception:  # ImportError or runtime extraction error
             logger.info("pdfminer.six not available or extraction failed; skipping typed extraction")
             text = ""
@@ -145,14 +142,15 @@ class ExamPdfService:
         # If typed extraction yields little text, attempt OCR when optional deps are present.
         if len(text.strip()) < 50:
             try:
-                import pytesseract
-                from pdf2image import convert_from_bytes
+                pytesseract = importlib.import_module("pytesseract")
+                pdf2image = importlib.import_module("pdf2image")
+                convert_from_bytes = getattr(pdf2image, "convert_from_bytes")
+                image_to_string = getattr(pytesseract, "image_to_string")
 
                 images = convert_from_bytes(pdf_bytes)
-                ocr_texts = [pytesseract.image_to_string(img) for img in images]
+                ocr_texts = [image_to_string(img) for img in images]
                 ocr_combined = "\n".join(ocr_texts).strip()
-                if ocr_combined:
-                    text = (text + "\n" + ocr_combined).strip()
+                text = (text + "\n" + ocr_combined).strip() if ocr_combined else text
             except Exception:
                 logger.info("OCR dependencies unavailable or OCR failed; skipping OCR fallback")
 

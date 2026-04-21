@@ -14,6 +14,7 @@ from api.di import (
     async_job_repository_factory,
     course_repository_factory,
     exam_pdf_service_factory,
+    exam_pdf_text_repository_factory,
     exam_pdf_upload_repository_factory,
     get_activity_by_path_id,
     get_course_by_path_id,
@@ -118,6 +119,16 @@ def test_exam_pdf_upload_repository_factory_returns_repository() -> None:
     assert isinstance(result, ExamPdfUploadRepository)
 
 
+def test_exam_pdf_text_repository_factory_returns_repository() -> None:
+    from learnwithai.repositories.exam_pdf_text_repository import ExamPdfTextRepository
+
+    session = MagicMock()
+
+    result = exam_pdf_text_repository_factory(session)
+
+    assert isinstance(result, ExamPdfTextRepository)
+
+
 def test_roster_upload_service_factory_returns_service() -> None:
     from learnwithai.services.roster_upload_service import RosterUploadService
 
@@ -134,7 +145,7 @@ def test_roster_upload_service_factory_returns_service() -> None:
 def test_exam_pdf_service_factory_returns_service() -> None:
     from learnwithai.services.exam_pdf_service import ExamPdfService
 
-    result = exam_pdf_service_factory(MagicMock(), MagicMock(), MagicMock())
+    result = exam_pdf_service_factory(MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     assert isinstance(result, ExamPdfService)
 

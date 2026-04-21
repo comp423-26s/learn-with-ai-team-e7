@@ -20,6 +20,7 @@ from learnwithai.rabbitmq_management import RabbitMQManagementClient
 from learnwithai.repositories.activity_repository import ActivityRepository
 from learnwithai.repositories.async_job_repository import AsyncJobRepository
 from learnwithai.repositories.course_repository import CourseRepository
+from learnwithai.repositories.exam_pdf_text_repository import ExamPdfTextRepository
 from learnwithai.repositories.exam_pdf_upload_repository import ExamPdfUploadRepository
 from learnwithai.repositories.membership_repository import MembershipRepository
 from learnwithai.repositories.operator_repository import OperatorRepository
@@ -56,6 +57,7 @@ __all__ = [
     "CourseRepositoryDI",
     "CourseServiceDI",
     "ExamPdfServiceDI",
+    "ExamPdfTextRepositoryDI",
     "ExamPdfUploadRepositoryDI",
     "IyowActivityRepositoryDI",
     "IyowActivityServiceDI",
@@ -82,6 +84,7 @@ __all__ = [
     "course_repository_factory",
     "course_service_factory",
     "exam_pdf_service_factory",
+    "exam_pdf_text_repository_factory",
     "exam_pdf_upload_repository_factory",
     "csxl_auth_service_factory",
     "get_activity_by_path_id",
@@ -177,6 +180,17 @@ def exam_pdf_upload_repository_factory(session: SessionDI) -> ExamPdfUploadRepos
 ExamPdfUploadRepositoryDI: TypeAlias = Annotated[
     ExamPdfUploadRepository,
     Depends(exam_pdf_upload_repository_factory),
+]
+
+
+def exam_pdf_text_repository_factory(session: SessionDI) -> ExamPdfTextRepository:
+    """Constructs an exam PDF extracted-text repository for the current session."""
+    return ExamPdfTextRepository(session)
+
+
+ExamPdfTextRepositoryDI: TypeAlias = Annotated[
+    ExamPdfTextRepository,
+    Depends(exam_pdf_text_repository_factory),
 ]
 
 
@@ -349,9 +363,10 @@ def exam_pdf_service_factory(
     exam_pdf_upload_repo: ExamPdfUploadRepositoryDI,
     membership_repo: MembershipRepositoryDI,
     object_storage: ObjectStorageDI,
+    exam_pdf_text_repo: ExamPdfTextRepositoryDI,
 ) -> ExamPdfService:
     """Creates the exam PDF service for the current request."""
-    return ExamPdfService(exam_pdf_upload_repo, membership_repo, object_storage)
+    return ExamPdfService(exam_pdf_upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
 
 
 ExamPdfServiceDI: TypeAlias = Annotated[ExamPdfService, Depends(exam_pdf_service_factory)]

@@ -50,3 +50,18 @@ class ExamPerformanceAnalysis(BaseModel):
     strengths: list[str]
     weaknesses: list[str]
     needs_review: list[str]
+
+
+class TopicSummaryLine(BaseModel):
+    label: str
+    topic: str
+    performance: PerformanceLabel
+    average_score_pct: float
+
+
+class ExamAnalysisSummary(BaseModel):
+    strengths: list[TopicSummaryLine]
+    weaknesses: list[TopicSummaryLine]
+    needs_review: list[TopicSummaryLine]
+    headline: str
+    overall_score_pct: float

@@ -10,11 +10,13 @@ from statistics import mean
 from pydantic import ValidationError
 
 from ..models.exam_analysis import (
+    ExamAnalysisSummary,
     ExamPerformanceAnalysis,
     PerformanceLabel,
     QuestionPerformanceInput,
     QuestionTopicMapping,
     TopicPerformanceSummary,
+    TopicSummaryLine,
 )
 from ..repositories.exam_pdf_text_repository import ExamPdfTextRepository
 from .ai_completion_service import AiCompletionService
@@ -248,3 +250,63 @@ class ExamAnalysisService:
         if score_pct >= 0.6:
             return "needs_review"
         return "weak"
+
+    def summarize_analysis(self, analysis: ExamPerformanceAnalysis) -> ExamAnalysisSummary:
+        """Converts a structured analysis into a concise dashboard summary.
+
+        Guarantees at least one entry in strengths and weaknesses by promoting
+        the highest- and lowest-scoring topics when the model returns no clear
+        strong/weak classification.
+
+        Args:
+            analysis: The structured output from analyze_questions or analyze_upload.
+
+        Returns:
+            A flat, dashboard-ready summary with labelled topics and a headline.
+        """
+
+        def _to_line(summary: TopicPerformanceSummary) -> TopicSummaryLine:
+            label = f"{summary.topic} ({summary.performance.replace('_', ' ')})"
+            return TopicSummaryLine(
+                label=label,
+                topic=summary.topic,
+                performance=summary.performance,
+                average_score_pct=round(summary.average_score_pct, 3),
+            )
+
+        by_performance: dict[str, list[TopicPerformanceSummary]] = defaultdict(list)
+        for topic in analysis.topic_summaries:
+            by_performance[topic.performance].append(topic)
+
+        strengths = [_to_line(t) for t in by_performance["strong"]]
+        weaknesses = [_to_line(t) for t in by_performance["weak"]]
+        needs_review = [_to_line(t) for t in by_performance["needs_review"]]
+
+        sorted_topics = sorted(
+            analysis.topic_summaries,
+            key=lambda t: t.average_score_pct,
+        )
+        if not strengths:
+            best = sorted_topics[-1]
+            strengths = [_to_line(best)]
+            needs_review = [line for line in needs_review if line.topic != best.topic]
+
+        if not weaknesses:
+            worst = sorted_topics[0]
+            weaknesses = [_to_line(worst)]
+            needs_review = [line for line in needs_review if line.topic != worst.topic]
+            strengths = [line for line in strengths if line.topic != worst.topic]
+
+        overall = round(mean(t.average_score_pct for t in analysis.topic_summaries), 3)
+
+        strength_names = ", ".join(line.topic for line in strengths)
+        weak_names = ", ".join(line.topic for line in weaknesses)
+        headline = f"You performed well in {strength_names}. Focus your revision on {weak_names}."
+
+        return ExamAnalysisSummary(
+            strengths=strengths,
+            weaknesses=weaknesses,
+            needs_review=needs_review,
+            headline=headline,
+            overall_score_pct=overall,
+        )

@@ -19,7 +19,12 @@ describe('GradingAnalyzer', () => {
     const mockService = {
       uploadExam: options.uploadError
         ? vi.fn(() => Promise.reject(new Error('fail')))
-        : vi.fn(() => Promise.resolve({ submissionId: 42 })),
+        : vi.fn(() =>
+            Promise.resolve({
+              uploadId: 42,
+              analysis: { strengths: [] } as Record<string, unknown>,
+            }),
+          ),
     };
 
     const mockRoute = {
@@ -85,11 +90,11 @@ describe('GradingAnalyzer', () => {
     expect(el.textContent).toContain('Only PDF files are accepted.');
   });
 
-  it('should reject a PDF larger than 10 MB', async () => {
+  it('should reject a PDF larger than 50 MB', async () => {
     const { fixture } = await setup();
     const component = fixture.componentInstance;
 
-    const bigContent = new Uint8Array(11 * 1024 * 1024);
+    const bigContent = new Uint8Array(51 * 1024 * 1024);
     const file = new File([bigContent], 'big.pdf', { type: 'application/pdf' });
     const event = { target: { files: [file] } } as unknown as Event;
     component['onFileSelected'](event);
@@ -97,7 +102,7 @@ describe('GradingAnalyzer', () => {
 
     expect(component['selectedFile']()).toBeNull();
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.textContent).toContain('File must be 10MB or smaller.');
+    expect(el.textContent).toContain('File must be 50MB or smaller.');
   });
 
   it('should accept a valid PDF file', async () => {
@@ -154,7 +159,6 @@ describe('GradingAnalyzer', () => {
     const { fixture, mockService } = await setup();
     const component = fixture.componentInstance;
 
-    // form is invalid (assignmentName is empty)
     await component['onSubmit']();
 
     expect(mockService.uploadExam).not.toHaveBeenCalled();
@@ -164,8 +168,6 @@ describe('GradingAnalyzer', () => {
     const { fixture, mockService } = await setup();
     const component = fixture.componentInstance;
 
-    component['form'].setValue({ assignmentName: 'Exam 1', score: 90 });
-    // no file selected
     await component['onSubmit']();
 
     expect(mockService.uploadExam).not.toHaveBeenCalled();
@@ -177,19 +179,32 @@ describe('GradingAnalyzer', () => {
 
     const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
     component['selectedFile'].set(file);
-    component['form'].setValue({ assignmentName: 'Exam 1', score: 88 });
 
-    const formEl = fixture.nativeElement.querySelector('form') as HTMLFormElement;
-    formEl.dispatchEvent(new Event('submit'));
-    await flush();
+    await component['onSubmit']();
     fixture.detectChanges();
 
-    expect(mockService.uploadExam).toHaveBeenCalledWith(3, file, 'Exam 1', 88);
+    expect(mockService.uploadExam).toHaveBeenCalledWith(3, file);
     expect(component['uploadSuccess']()).toBe(true);
+  });
 
-    const el: HTMLElement = fixture.nativeElement;
-    expect(el.textContent).toContain('Upload successful!');
-    expect(el.querySelector('form')).toBeNull();
+  it('should submit through the form and prevent the default browser navigation', async () => {
+    const { fixture, mockService } = await setup();
+    const component = fixture.componentInstance;
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+
+    const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(file);
+
+    const submitEvent = new Event('submit', {
+      bubbles: true,
+      cancelable: true,
+    });
+
+    form.dispatchEvent(submitEvent);
+    fixture.detectChanges();
+
+    expect(submitEvent.defaultPrevented).toBe(true);
+    expect(mockService.uploadExam).toHaveBeenCalledWith(3, file);
   });
 
   it('should show error when upload fails', async () => {
@@ -198,7 +213,6 @@ describe('GradingAnalyzer', () => {
 
     const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
     component['selectedFile'].set(file);
-    component['form'].setValue({ assignmentName: 'Exam 1', score: 70 });
 
     await component['onSubmit']();
     fixture.detectChanges();
@@ -222,30 +236,28 @@ describe('GradingAnalyzer', () => {
     expect(component['uploadSuccess']()).toBe(false);
     expect(component['errorMessage']()).toBe('');
     expect(component['selectedFile']()).toBeNull();
-    expect(fixture.nativeElement.querySelector('form')).toBeTruthy();
   });
 
   it('should show spinner while uploading', async () => {
-    let resolveUpload!: (value: { submissionId: number }) => void;
+    let resolveUpload!: (value: { uploadId: number; analysis: Record<string, unknown> }) => void;
     const { fixture, mockService } = await setup();
     const component = fixture.componentInstance;
 
     mockService.uploadExam.mockReturnValueOnce(
-      new Promise<{ submissionId: number }>((res) => {
+      new Promise<{ uploadId: number; analysis: Record<string, unknown> }>((res) => {
         resolveUpload = res;
       }),
     );
 
     const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
     component['selectedFile'].set(file);
-    component['form'].setValue({ assignmentName: 'Exam 1', score: 75 });
 
     const submitPromise = component['onSubmit']();
     fixture.detectChanges();
 
     expect(component['uploading']()).toBe(true);
 
-    resolveUpload({ submissionId: 1 });
+    resolveUpload({ uploadId: 1, analysis: { strengths: [] } });
     await submitPromise;
     fixture.detectChanges();
 

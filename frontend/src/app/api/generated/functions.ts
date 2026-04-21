@@ -73,6 +73,10 @@ export type { GetActiveSubmission$Params as GetActiveSubmission$Params } from '.
 export { getActiveSubmission as getActiveSubmission } from './fn/activities/get-active-submission';
 export type { GetStudentSubmissionHistory$Params as GetStudentSubmissionHistory$Params } from './fn/activities/get-student-submission-history';
 export { getStudentSubmissionHistory as getStudentSubmissionHistory } from './fn/activities/get-student-submission-history';
+export type { UploadExamPdf$Params as UploadExamPdf$Params } from './fn/exam-pd-fs/upload-exam-pdf';
+export { uploadExamPdf as uploadExamPdf } from './fn/exam-pd-fs/upload-exam-pdf';
+export type { GetExamAnalysis$Params as GetExamAnalysis$Params } from './fn/exam-pd-fs/get-exam-analysis';
+export { getExamAnalysis as getExamAnalysis } from './fn/exam-pd-fs/get-exam-analysis';
 export type { UploadRosterCsv$Params as UploadRosterCsv$Params } from './fn/roster-uploads/upload-roster-csv';
 export { uploadRosterCsv as uploadRosterCsv } from './fn/roster-uploads/upload-roster-csv';
 export type { GetRosterUploadStatus$Params as GetRosterUploadStatus$Params } from './fn/roster-uploads/get-roster-upload-status';

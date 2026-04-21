@@ -7,15 +7,17 @@ import { filter, map } from 'rxjs/operators';
 import { StrictHttpResponse } from '../../strict-http-response';
 import { RequestBuilder } from '../../request-builder';
 
-import { CourseAnalysisResponse } from '../../models/course-analysis-response';
+import { ExamPdfAnalysisResponse } from '../../models/exam-pdf-analysis-response';
 
-export interface GetCourseAnalysis$Params {
+export interface GetExamAnalysis$Params {
+  upload_id: number;
   course_id: number;
 }
 
-export function getCourseAnalysis(http: HttpClient, rootUrl: string, params: GetCourseAnalysis$Params, context?: HttpContext): Observable<StrictHttpResponse<CourseAnalysisResponse>> {
-  const rb = new RequestBuilder(rootUrl, getCourseAnalysis.PATH, 'get');
+export function getExamAnalysis(http: HttpClient, rootUrl: string, params: GetExamAnalysis$Params, context?: HttpContext): Observable<StrictHttpResponse<ExamPdfAnalysisResponse>> {
+  const rb = new RequestBuilder(rootUrl, getExamAnalysis.PATH, 'get');
   if (params) {
+    rb.path('upload_id', params.upload_id, {});
     rb.path('course_id', params.course_id, {});
   }
 
@@ -24,9 +26,9 @@ export function getCourseAnalysis(http: HttpClient, rootUrl: string, params: Get
   ).pipe(
     filter((r: any): r is HttpResponse<any> => r instanceof HttpResponse),
     map((r: HttpResponse<any>) => {
-      return r as StrictHttpResponse<CourseAnalysisResponse>;
+      return r as StrictHttpResponse<ExamPdfAnalysisResponse>;
     })
   );
 }
 
-getCourseAnalysis.PATH = '/api/courses/{course_id}/analysis';
+getExamAnalysis.PATH = '/api/courses/{course_id}/exam-pdfs/{upload_id}/analysis';

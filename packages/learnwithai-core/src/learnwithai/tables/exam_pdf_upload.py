@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, func
 from sqlmodel import Field, SQLModel
 
 
@@ -35,6 +35,10 @@ class ExamPdfUpload(SQLModel, table=True):
     )
     size_bytes: int = Field(
         sa_column=Column(Integer, nullable=False),
+    )
+    analysis_data: dict | None = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
     )
     created_at: datetime = Field(
         sa_column=Column(

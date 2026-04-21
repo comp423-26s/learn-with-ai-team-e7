@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from types import ModuleType
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -35,8 +36,7 @@ def _make_membership():
 
 
 def _upload_with_id(id_val: int | None = 22) -> ExamPdfUpload:
-    return ExamPdfUpload.model_construct(
-        _fields_set=None,
+    return ExamPdfUpload(
         id=id_val,
         course_id=1,
         uploader_pid=123,
@@ -44,7 +44,7 @@ def _upload_with_id(id_val: int | None = 22) -> ExamPdfUpload:
         original_filename="exam.pdf",
         content_type="application/pdf",
         size_bytes=100,
-        created_at=None,
+        created_at=datetime.now(timezone.utc),
     )
 
 
@@ -57,8 +57,9 @@ def _setup(upload_id: int | None = 22):
 
     object_storage = MagicMock()
     text_repo = MagicMock()
+    analysis_service = MagicMock()
 
-    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo)
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, analysis_service)
     return service, text_repo
 
 
@@ -135,13 +136,16 @@ def test_pdfminer_failure_triggers_ocr():
     assert "ocr text" in repo.create.call_args.args[0].extracted_text
 
 
-def test_ocr_failure_and_empty_skips_persistence():
+def test_ocr_failure_and_empty_still_persists_fallback_analysis():
     service, repo = _setup()
 
     with patch("importlib.import_module", side_effect=mock_import(typed="", ocr=Exception("fail"))):
-        service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
+        upload = service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
 
     repo.create.assert_not_called()
+    service._exam_analysis_service.analyze_from_text.assert_called_once_with("")
+    service._exam_pdf_upload_repo.update.assert_called_once_with(upload)
+    assert upload.analysis_data is not None
 
 
 def test_upload_id_none_and_persistence_exception_paths():
@@ -157,7 +161,7 @@ def test_upload_id_none_and_persistence_exception_paths():
 
 
 def test_extract_text_ocr_runs_when_typed_text_is_short() -> None:
-    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     with patch.object(service, "_extract_text_from_pdf", wraps=service._extract_text_from_pdf):
         sys.modules.pop("pdfminer.high_level", None)
@@ -182,7 +186,7 @@ def test_extract_text_ocr_runs_when_typed_text_is_short() -> None:
 
 
 def test_extract_text_ocr_skipped_when_typed_text_is_long() -> None:
-    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     sys.modules.pop("pdfminer.high_level", None)
     pdfminer_mod: Any = ModuleType("pdfminer.high_level")
@@ -195,7 +199,7 @@ def test_extract_text_ocr_skipped_when_typed_text_is_long() -> None:
 
 
 def test_extract_text_returns_empty_when_ocr_yields_whitespace() -> None:
-    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     sys.modules.pop("pdfminer.high_level", None)
     sys.modules.pop("pytesseract", None)
@@ -219,7 +223,7 @@ def test_extract_text_returns_empty_when_ocr_yields_whitespace() -> None:
 
 
 def test_extract_text_returns_empty_when_ocr_deps_unavailable() -> None:
-    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     sys.modules.pop("pdfminer.high_level", None)
     sys.modules.pop("pytesseract", None)
@@ -232,3 +236,50 @@ def test_extract_text_returns_empty_when_ocr_deps_unavailable() -> None:
     result = service._extract_text_from_pdf(b"%PDF-1.7")
 
     assert result == ""
+
+
+def test_upload_persists_analysis_data_when_analysis_succeeds() -> None:
+    upload_repo = MagicMock()
+    upload_repo.create.return_value = _upload_with_id(22)
+
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = _make_membership()
+
+    object_storage = MagicMock()
+    text_repo = MagicMock()
+
+    analysis_service = MagicMock()
+    analysis_service.analyze_from_text.return_value = MagicMock(
+        model_dump=MagicMock(return_value={"strengths": ["Algebra"]})
+    )
+
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, analysis_service)
+    service._extract_text_from_pdf = MagicMock(return_value="Question 1: ...")
+
+    upload = service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF")
+
+    assert upload.analysis_data == {"strengths": ["Algebra"]}
+    upload_repo.update.assert_called_once_with(upload)
+
+
+def test_upload_still_succeeds_when_analysis_fails() -> None:
+    upload_repo = MagicMock()
+    upload_repo.create.return_value = _upload_with_id(22)
+
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = _make_membership()
+
+    object_storage = MagicMock()
+    text_repo = MagicMock()
+
+    analysis_service = MagicMock()
+    analysis_service.analyze_from_text.side_effect = RuntimeError("analysis failed")
+
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, analysis_service)
+    service._extract_text_from_pdf = MagicMock(return_value="Question 1: ...")
+
+    upload = service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF")
+
+    assert upload.id == 22
+    assert upload.analysis_data is None
+    upload_repo.update.assert_not_called()

@@ -8,7 +8,7 @@ from functools import lru_cache
 from importlib import import_module
 from typing import TypeAlias
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.engine import URL, make_url
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -34,6 +34,26 @@ def create_db_and_tables() -> None:
     """Creates all configured database tables."""
     load_table_metadata()
     SQLModel.metadata.create_all(get_engine())
+    ensure_exam_pdf_upload_analysis_column()
+
+
+def ensure_exam_pdf_upload_analysis_column() -> None:
+    """Backfills the exam PDF analysis column when an existing database is missing it."""
+    engine = get_engine()
+    database_url = make_url(get_settings().effective_database_url)
+    if not database_url.drivername.startswith("postgresql"):
+        return
+    if not hasattr(engine, "begin"):
+        return
+
+    from learnwithai.tables.exam_pdf_upload import ExamPdfUpload
+
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        existing_columns = {column["name"] for column in inspector.get_columns(ExamPdfUpload.__tablename__)}
+        if "analysis_data" in existing_columns:
+            return
+        connection.execute(text(f"ALTER TABLE {ExamPdfUpload.__tablename__} ADD COLUMN analysis_data JSON"))
 
 
 def load_table_metadata() -> None:

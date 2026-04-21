@@ -310,3 +310,195 @@ class ExamAnalysisService:
             headline=headline,
             overall_score_pct=overall,
         )
+
+    def analyze_from_text(self, extracted_text: str) -> ExamPerformanceAnalysis:
+        """Analyzes a graded exam from extracted PDF text alone.
+
+        Instructs OpenAI to extract questions, infer topics, and determine
+        performance labels from visible grading marks. Returns structured analysis
+        with fallback support for malformed LLM responses.
+
+        Args:
+            extracted_text: Full text extracted from the graded exam PDF.
+
+        Returns:
+            Structured analysis with topics, question mappings, and performance labels.
+        """
+        normalized_text = extracted_text.strip()
+        if not normalized_text:
+            return self._build_fallback_from_text("")
+
+        llm_response = self._ai_completion_service.complete(
+            system_prompt=self._system_prompt_from_text(),
+            user_prompt=self._user_prompt_from_text(extracted_text),
+        )
+        parsed = self._parse_llm_response_from_text(llm_response)
+        if parsed is not None:
+            return parsed
+
+        # Fallback: derive topics from text keywords if LLM parsing fails.
+        return self._build_fallback_from_text(extracted_text)
+
+    def _system_prompt_from_text(self) -> str:
+        return (
+            "You are an exam analysis engine. Analyze the provided graded exam text. "
+            "Return ONLY valid JSON with no markdown. "
+            "Extract questions from the text (identify by numbering or markers). "
+            "Infer exactly 3 to 5 topic categories from question content. "
+            "Determine performance (strong|needs_review|weak) from visible grading "
+            "marks (scores, percentages, check marks, X marks). "
+            "If no clear grading is visible, mark all questions with needs_review. "
+            "Assign every question to exactly one topic."
+        )
+
+    def _user_prompt_from_text(self, extracted_text: str) -> str:
+        payload = {
+            "exam_text": extracted_text,
+            "required_schema": {
+                "topic_summaries": [
+                    {
+                        "topic": "string (3-5 topics total)",
+                        "question_ids": ["string (e.g., '1', '2a', 'Q3')"],
+                        "average_score_pct": "number between 0 and 1",
+                        "performance": "strong|needs_review|weak",
+                    }
+                ],
+                "question_mappings": [
+                    {
+                        "question_id": "string",
+                        "topic": "string",
+                        "performance": "strong|needs_review|weak (inferred from grading marks)",
+                        "score_earned": "number >= 0 (inferred from marks visible in exam, or 0 if not visible)",
+                        "score_possible": "number > 0 (inferred from point values shown, or 1 if not visible)",
+                    }
+                ],
+                "strengths": ["topic names with strong performance"],
+                "weaknesses": ["topic names with weak performance"],
+                "needs_review": ["topic names with needs_review performance"],
+            },
+        }
+        return json.dumps(payload)
+
+    def _parse_llm_response_from_text(self, raw_response: str) -> ExamPerformanceAnalysis | None:
+        json_payload = self._extract_json_object(raw_response)
+        if json_payload is None:
+            return None
+
+        try:
+            parsed = ExamPerformanceAnalysis.model_validate_json(json_payload)
+        except ValidationError:
+            return None
+
+        # Validate that we have at least some questions and 3-5 topics
+        if not parsed.question_mappings or not 3 <= len(parsed.topic_summaries) <= 5:
+            return None
+        return parsed
+
+    def _build_fallback_from_text(self, extracted_text: str) -> ExamPerformanceAnalysis:
+        # Extract potential question IDs and derive topics from text.
+        question_ids = self._extract_question_ids(extracted_text)
+        if not question_ids:
+            question_ids = [str(i + 1) for i in range(5)]  # Assume 5 questions if none found
+
+        topic_names = self._derive_topic_names_from_text(extracted_text)
+
+        # Assign each question to a topic and mark as needs_review (conservative fallback).
+        mappings: list[QuestionTopicMapping] = []
+        for idx, question_id in enumerate(question_ids):
+            topic = topic_names[idx % len(topic_names)]
+            mappings.append(
+                QuestionTopicMapping(
+                    question_id=question_id,
+                    topic=topic,
+                    performance="needs_review",  # Conservative: no visible grading found
+                    score_earned=0.0,
+                    score_possible=1.0,
+                )
+            )
+
+        grouped_ids: dict[str, list[str]] = defaultdict(list)
+        for mapping in mappings:
+            grouped_ids[mapping.topic].append(mapping.question_id)
+
+        topic_summaries: list[TopicPerformanceSummary] = []
+        for topic in topic_names:
+            topic_summaries.append(
+                TopicPerformanceSummary(
+                    topic=topic,
+                    question_ids=grouped_ids[topic],
+                    average_score_pct=0.0,
+                    performance="needs_review",
+                )
+            )
+
+        return ExamPerformanceAnalysis(
+            topic_summaries=topic_summaries,
+            question_mappings=mappings,
+            strengths=[],
+            weaknesses=topic_names,  # All topics marked as weaknesses (conservative)
+            needs_review=[],
+        )
+
+    def _extract_question_ids(self, text: str) -> list[str]:
+        """Attempts to extract question identifiers from exam text.
+
+        Looks for common patterns like Q1, Question 1, 1), etc.
+        """
+        import re
+
+        patterns = [
+            r"(?:Question|Q)\s*#?(\d+[a-z]?)",
+            r"^(\d+[a-z]?)\s*[.)]",
+            r"(\d+[a-z]?)\s*pts?",
+        ]
+
+        found: set[str] = set()
+        for pattern in patterns:
+            matches = re.findall(pattern, text, re.MULTILINE | re.IGNORECASE)
+            found.update(matches)
+
+        return sorted(found, key=lambda x: (len(x), x))[:10]  # Limit to top 10
+
+    def _derive_topic_names_from_text(self, text: str) -> list[str]:
+        """Derives topic names from keywords in exam text."""
+        words: list[str] = []
+        words.extend(re.findall(r"[A-Za-z]{5,}", text.lower()))
+
+        stopwords = {
+            "which",
+            "would",
+            "about",
+            "after",
+            "before",
+            "there",
+            "their",
+            "question",
+            "following",
+            "explain",
+            "describe",
+            "correct",
+            "answer",
+            "point",
+            "points",
+            "total",
+            "exam",
+            "test",
+            "circle",
+            "select",
+            "show",
+            "work",
+            "solve",
+        }
+        filtered = [word for word in words if word not in stopwords]
+
+        counts: dict[str, int] = {}
+        for word in filtered:
+            counts[word] = counts.get(word, 0) + 1
+
+        top_terms = [word for word, _count in sorted(counts.items(), key=lambda item: item[1], reverse=True)[:5]]
+        topic_names = [f"Topic: {term.title()}" for term in top_terms]
+
+        while len(topic_names) < 3:
+            topic_names.append(f"Topic Category {len(topic_names) + 1}")
+
+        return topic_names[:5]

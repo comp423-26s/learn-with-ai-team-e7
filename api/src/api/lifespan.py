@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from learnwithai.config import Settings
+from learnwithai.db import ensure_exam_pdf_upload_analysis_column
 
 from api.realtime import JobUpdateManager, consume_job_updates
 from api.routes import ws as ws_route_module
@@ -38,6 +39,8 @@ async def _lifespan_context(application: FastAPI) -> AsyncIterator[None]:
     """
     manager = JobUpdateManager()
     ws_route_module.configure(manager)
+
+    ensure_exam_pdf_upload_analysis_column()
 
     current_settings = Settings()
     consumer_task: asyncio.Task[None] | None = None

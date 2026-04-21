@@ -22,7 +22,7 @@ from .course import (
     UpdateCourseRequest,
     UpdateMemberRoleRequest,
 )
-from .exam_pdf import ExamPdfUploadResponse
+from .exam_pdf import ExamPdfAnalysisResponse, ExamPdfUploadResponse
 from .job_control import (
     JobControlOverviewResponse,
     JobFailuresResponse,
@@ -50,6 +50,7 @@ __all__ = [
     "CourseMembership",
     "CourseResponse",
     "CreateCourseRequest",
+    "ExamPdfAnalysisResponse",
     "ExamPdfUploadResponse",
     "CreateIyowActivityRequest",
     "CreateJokeRequest",

@@ -67,12 +67,57 @@ def test_create_db_and_tables_uses_cached_engine() -> None:
         patch("learnwithai.db.load_table_metadata") as load_table_metadata_mock,
         patch("learnwithai.db.get_engine", return_value=expected_engine),
         patch("learnwithai.db.SQLModel.metadata.create_all") as create_all_mock,
+        patch("learnwithai.db.ensure_exam_pdf_upload_analysis_column") as ensure_column_mock,
     ):
         db.create_db_and_tables()
 
     # Assert
     load_table_metadata_mock.assert_called_once_with()
     create_all_mock.assert_called_once_with(expected_engine)
+    ensure_column_mock.assert_called_once_with()
+
+
+def test_ensure_exam_pdf_upload_analysis_column_adds_missing_column() -> None:
+    # Arrange
+    engine = MagicMock()
+    connection = MagicMock()
+    engine.begin.return_value.__enter__.return_value = connection
+
+    inspector = MagicMock()
+    inspector.get_columns.return_value = [
+        {"name": "id"},
+        {"name": "course_id"},
+    ]
+
+    with (
+        patch("learnwithai.db.get_settings", return_value=SimpleNamespace(effective_database_url="postgresql+psycopg://postgres:postgres@postgres:5432/learnwithai")),
+        patch("learnwithai.db.get_engine", return_value=engine),
+        patch("learnwithai.db.inspect", return_value=inspector),
+    ):
+        db.ensure_exam_pdf_upload_analysis_column()
+
+    connection.execute.assert_called_once()
+
+
+def test_ensure_exam_pdf_upload_analysis_column_skips_when_present() -> None:
+    # Arrange
+    engine = MagicMock()
+    connection = MagicMock()
+    engine.begin.return_value.__enter__.return_value = connection
+
+    inspector = MagicMock()
+    inspector.get_columns.return_value = [
+        {"name": "analysis_data"},
+    ]
+
+    with (
+        patch("learnwithai.db.get_settings", return_value=SimpleNamespace(effective_database_url="postgresql+psycopg://postgres:postgres@postgres:5432/learnwithai")),
+        patch("learnwithai.db.get_engine", return_value=engine),
+        patch("learnwithai.db.inspect", return_value=inspector),
+    ):
+        db.ensure_exam_pdf_upload_analysis_column()
+
+    connection.execute.assert_not_called()
 
 
 def test_load_table_metadata_imports_tables_package() -> None:

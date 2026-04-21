@@ -6,18 +6,16 @@ import importlib
 import io
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from ..errors import AuthorizationError
 from ..interfaces import ObjectStorage
-from ..tables.exam_pdf_text import ExamPdfText
-
-if TYPE_CHECKING:
-    from ..repositories.exam_pdf_text_repository import ExamPdfTextRepository
+from ..repositories.exam_pdf_text_repository import ExamPdfTextRepository
 from ..repositories.exam_pdf_upload_repository import ExamPdfUploadRepository
 from ..repositories.membership_repository import MembershipRepository
+from ..services.exam_analysis_service import ExamAnalysisService
 from ..tables.course import Course
+from ..tables.exam_pdf_text import ExamPdfText
 from ..tables.exam_pdf_upload import ExamPdfUpload
 from ..tables.membership import MembershipState
 from ..tables.user import User
@@ -39,12 +37,14 @@ class ExamPdfService:
         membership_repo: MembershipRepository,
         object_storage: ObjectStorage,
         exam_pdf_text_repo: ExamPdfTextRepository,
+        exam_analysis_service: ExamAnalysisService,
     ) -> None:
         """Initializes service dependencies."""
         self._exam_pdf_upload_repo = exam_pdf_upload_repo
         self._membership_repo = membership_repo
         self._object_storage = object_storage
         self._exam_pdf_text_repo = exam_pdf_text_repo
+        self._exam_analysis_service = exam_analysis_service
 
     def upload_pdf(
         self,
@@ -92,21 +92,45 @@ class ExamPdfService:
         try:
             extracted = self._extract_text_from_pdf(pdf_bytes)
 
-            if not extracted.strip():
-                return upload
+            if extracted.strip():
+                if upload.id is None:
+                    raise ValueError("Persisted upload must include an id")
 
-            if upload.id is None:
-                raise ValueError("Persisted upload must include an id")
+                self._exam_pdf_text_repo.create(ExamPdfText(upload_id=upload.id, extracted_text=extracted))
+                logger.info(
+                    "Extracted text stored for exam PDF",
+                    extra={
+                        "upload_id": upload.id,
+                        "course_id": course.id,
+                        "uploader_pid": subject.pid,
+                    },
+                )
 
-            self._exam_pdf_text_repo.create(ExamPdfText(upload_id=upload.id, extracted_text=extracted))
-            logger.info(
-                "Extracted text stored for exam PDF",
-                extra={
-                    "upload_id": upload.id,
-                    "course_id": course.id,
-                    "uploader_pid": subject.pid,
-                },
-            )
+            # Analyze the extracted text or fall back to a conservative summary when text is unavailable.
+            try:
+                logger.info("Extracted text length: %d", len(extracted or ""))
+                logger.info("Calling analyze_from_text...")
+                analysis = self._exam_analysis_service.analyze_from_text(extracted)
+                upload.analysis_data = analysis.model_dump()
+                self._exam_pdf_upload_repo.update(upload)
+                logger.info(
+                    "Analysis stored for exam PDF",
+                    extra={
+                        "upload_id": upload.id,
+                        "course_id": course.id,
+                        "uploader_pid": subject.pid,
+                        "topics": [t.topic for t in analysis.topic_summaries],
+                    },
+                )
+            except Exception:
+                logger.exception(
+                    "Exam analysis failed; upload persisted but analysis unavailable",
+                    extra={
+                        "upload_id": upload.id,
+                        "course_id": course.id,
+                        "uploader_pid": subject.pid,
+                    },
+                )
         except Exception:
             logger.exception(
                 "PDF text extraction or persistence failed",

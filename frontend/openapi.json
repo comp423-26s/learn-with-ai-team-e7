@@ -1336,6 +1336,146 @@
         }
       }
     },
+    "/api/courses/{course_id}/exam-pdfs": {
+      "post": {
+        "tags": [
+          "Exam PDFs"
+        ],
+        "summary": "Upload an exam PDF",
+        "description": "Validates and stores an uploaded exam PDF.\n\nArgs:\n    subject: Authenticated user uploading the file.\n    course: Course loaded via path dependency.\n    exam_pdf_svc: Service handling authorization and persistence.\n    file: Uploaded PDF from multipart form-data.\n\nReturns:\n    Stored upload metadata including storage key.\n\nRaises:\n    HTTPException: If validation fails or storage encounters an error.",
+        "operationId": "upload_exam_pdf",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Course Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_exam_pdf"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored upload metadata and storage key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamPdfUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file."
+          },
+          "401": {
+            "description": "Not authenticated."
+          },
+          "403": {
+            "description": "Insufficient permissions."
+          },
+          "404": {
+            "description": "Course not found."
+          },
+          "500": {
+            "description": "Storage failure."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/courses/{course_id}/exam-pdfs/{upload_id}/analysis": {
+      "get": {
+        "tags": [
+          "Exam PDFs"
+        ],
+        "summary": "Retrieve exam analysis",
+        "description": "Retrieves the analysis results for an uploaded exam PDF.\n\nArgs:\n    subject: Authenticated user requesting the analysis.\n    course: Course loaded via path dependency.\n    upload_id: Upload identifier from the URL path.\n    exam_pdf_upload_repo: Repository for loading upload records.\n\nReturns:\n    Structured analysis with topics, strengths, and weaknesses.\n\nRaises:\n    HTTPException: If the upload is not found, analysis is not available, or user lacks permission.",
+        "operationId": "get_exam_analysis",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Course Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Structured analysis of an uploaded exam PDF.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamPdfAnalysisResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated."
+          },
+          "403": {
+            "description": "Insufficient permissions."
+          },
+          "404": {
+            "description": "Upload not found or analysis not available."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/courses/{course_id}/roster-uploads": {
       "post": {
         "tags": [
@@ -2584,6 +2724,20 @@
         "title": "AsyncJobStatus",
         "description": "Lifecycle state of an asynchronous job."
       },
+      "Body_upload_exam_pdf": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_exam_pdf"
+      },
       "Body_upload_roster_csv": {
         "properties": {
           "file": {
@@ -2751,6 +2905,82 @@
         ],
         "title": "CreateJokeRequest",
         "description": "Request body for submitting a joke generation request."
+      },
+      "ExamPdfAnalysisResponse": {
+        "properties": {
+          "upload_id": {
+            "type": "integer",
+            "title": "Upload Id"
+          },
+          "analysis_data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Analysis Data"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_id",
+          "analysis_data",
+          "created_at"
+        ],
+        "title": "ExamPdfAnalysisResponse",
+        "description": "Response containing analysis results for an uploaded exam PDF."
+      },
+      "ExamPdfUploadResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "integer",
+            "title": "Course Id"
+          },
+          "uploader_pid": {
+            "type": "integer",
+            "title": "Uploader Pid"
+          },
+          "storage_key": {
+            "type": "string",
+            "title": "Storage Key"
+          },
+          "original_filename": {
+            "type": "string",
+            "title": "Original Filename"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "uploader_pid",
+          "storage_key",
+          "original_filename",
+          "content_type",
+          "size_bytes",
+          "created_at"
+        ],
+        "title": "ExamPdfUploadResponse",
+        "description": "Response returned when a PDF upload is stored successfully."
       },
       "GrantOperatorRequest": {
         "properties": {

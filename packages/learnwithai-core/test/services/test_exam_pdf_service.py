@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -29,7 +30,14 @@ def _build_service(
         object_storage = MagicMock(spec=ObjectStorage)
     if exam_pdf_text_repo is None:
         exam_pdf_text_repo = MagicMock(spec=ExamPdfTextRepository)
-    return ExamPdfService(exam_pdf_upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
+    exam_analysis_service = MagicMock()
+    return ExamPdfService(
+        exam_pdf_upload_repo,
+        membership_repo,
+        object_storage,
+        exam_pdf_text_repo,
+        exam_analysis_service,
+    )
 
 
 def _make_user(pid: int = 123456789) -> User:
@@ -62,8 +70,7 @@ def _make_membership(
 
 
 def _make_upload_record() -> ExamPdfUpload:
-    return ExamPdfUpload.model_construct(
-        _fields_set=None,
+    return ExamPdfUpload(
         id=22,
         course_id=1,
         uploader_pid=123456789,
@@ -71,7 +78,7 @@ def _make_upload_record() -> ExamPdfUpload:
         original_filename="exam.pdf",
         content_type="application/pdf",
         size_bytes=123,
-        created_at=None,
+        created_at=datetime.now(timezone.utc),
     )
 
 

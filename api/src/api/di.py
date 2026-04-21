@@ -27,17 +27,19 @@ from learnwithai.repositories.operator_repository import OperatorRepository
 from learnwithai.repositories.submission_repository import SubmissionRepository
 from learnwithai.repositories.user_repository import UserRepository
 from learnwithai.services.activity_service import ActivityService
+from learnwithai.services.ai_completion_service import AiCompletionService
 from learnwithai.services.course_service import CourseService
 from learnwithai.services.csxl_auth_service import (
     AuthenticationException,
     CSXLAuthService,
 )
+from learnwithai.services.exam_analysis_service import ExamAnalysisService
 from learnwithai.services.exam_pdf_service import ExamPdfService
 from learnwithai.services.job_control_service import JobControlService
 from learnwithai.services.metrics_service import MetricsService
 from learnwithai.services.operator_service import OperatorService
 from learnwithai.services.roster_upload_service import RosterUploadService
-from learnwithai.services.s3_object_storage import S3ObjectStorage
+from learnwithai.services.s3_object_storage import NoopObjectStorage, S3ObjectStorage
 from learnwithai.tables.activity import Activity
 from learnwithai.tables.course import Course
 from learnwithai.tables.user import User
@@ -50,12 +52,14 @@ __all__ = [
     "ActivityByPathDI",
     "ActivityRepositoryDI",
     "ActivityServiceDI",
+    "AiCompletionServiceDI",
     "AsyncJobRepositoryDI",
     "AuthenticatedUserDI",
     "CSXLAuthServiceDI",
     "CourseByCourseIDPathDI",
     "CourseRepositoryDI",
     "CourseServiceDI",
+    "ExamAnalysisServiceDI",
     "ExamPdfServiceDI",
     "ExamPdfTextRepositoryDI",
     "ExamPdfUploadRepositoryDI",
@@ -80,9 +84,11 @@ __all__ = [
     "UserRepositoryDI",
     "activity_repository_factory",
     "activity_service_factory",
+    "ai_completion_service_factory",
     "async_job_repository_factory",
     "course_repository_factory",
     "course_service_factory",
+    "exam_analysis_service_factory",
     "exam_pdf_service_factory",
     "exam_pdf_text_repository_factory",
     "exam_pdf_upload_repository_factory",
@@ -258,6 +264,8 @@ JobQueueDI: TypeAlias = Annotated[JobQueue, Depends(job_queue_factory)]
 def object_storage_factory(settings: SettingsDI) -> ObjectStorage:
     """Creates an object storage adapter from application settings."""
     if not settings.storage_s3_bucket:
+        if settings.is_development:
+            return NoopObjectStorage()
         raise HTTPException(status_code=500, detail="S3 storage is not configured.")
     return S3ObjectStorage(
         bucket=settings.storage_s3_bucket,
@@ -359,14 +367,50 @@ def roster_upload_service_factory(
 RosterUploadServiceDI: TypeAlias = Annotated[RosterUploadService, Depends(roster_upload_service_factory)]
 
 
+def ai_completion_service_factory(settings: SettingsDI) -> AiCompletionService:
+    """Creates the AI completion service for the current request."""
+    if settings.openai_api_key is None:
+        return _FallbackAiCompletionService()
+    return AiCompletionService(
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+        endpoint=settings.openai_endpoint,
+        api_version=settings.openai_api_version,
+    )
+
+
+AiCompletionServiceDI: TypeAlias = Annotated[AiCompletionService, Depends(ai_completion_service_factory)]
+
+
+class _FallbackAiCompletionService:
+    """Provides a deterministic fallback when OpenAI is not configured."""
+
+    def complete(self, *, system_prompt: str, user_prompt: str, model: str | None = None) -> str:
+        return "{}"
+
+
+def exam_analysis_service_factory(
+    ai_completion_service: AiCompletionServiceDI,
+    exam_pdf_text_repo: ExamPdfTextRepositoryDI,
+) -> ExamAnalysisService:
+    """Creates the exam analysis service for the current request."""
+    return ExamAnalysisService(ai_completion_service, exam_pdf_text_repo)
+
+
+ExamAnalysisServiceDI: TypeAlias = Annotated[ExamAnalysisService, Depends(exam_analysis_service_factory)]
+
+
 def exam_pdf_service_factory(
     exam_pdf_upload_repo: ExamPdfUploadRepositoryDI,
     membership_repo: MembershipRepositoryDI,
     object_storage: ObjectStorageDI,
     exam_pdf_text_repo: ExamPdfTextRepositoryDI,
+    exam_analysis_service: ExamAnalysisServiceDI,
 ) -> ExamPdfService:
     """Creates the exam PDF service for the current request."""
-    return ExamPdfService(exam_pdf_upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
+    return ExamPdfService(
+        exam_pdf_upload_repo, membership_repo, object_storage, exam_pdf_text_repo, exam_analysis_service
+    )
 
 
 ExamPdfServiceDI: TypeAlias = Annotated[ExamPdfService, Depends(exam_pdf_service_factory)]

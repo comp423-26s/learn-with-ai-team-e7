@@ -89,12 +89,12 @@ export class CourseDetail implements OnDestroy {
                 description: 'Review your course activities and assigned work',
                 icon: 'assignment',
               },
-                  {
-                    route: `/courses/${this.courseId}/student/tools`,
-                    label: 'Student Tools',
-                    description: 'Access student-facing course tools and workflows',
-                    icon: 'build',
-                  },
+              {
+                route: `/courses/${this.courseId}/student/tools`,
+                label: 'Student Tools',
+                description: 'Access student-facing course tools and workflows',
+                icon: 'build',
+              },
             ],
           },
         ],

@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from types import ModuleType
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from learnwithai.services.exam_pdf_service import ExamPdfService
 from learnwithai.tables.course import Course, Term
@@ -11,117 +11,224 @@ from learnwithai.tables.exam_pdf_upload import ExamPdfUpload
 from learnwithai.tables.membership import MembershipState
 from learnwithai.tables.user import User
 
-
-def _make_user(pid: int = 123456789) -> User:
-    mock = MagicMock(spec=User)
-    mock.pid = pid
-    mock.name = "Test User"
-    mock.onyen = "testuser"
-    return mock  # type: ignore[return-value]
+# ---------- Helpers ----------
 
 
-def _make_course(course_id: int = 1) -> Course:
-    mock = MagicMock(spec=Course)
-    mock.id = course_id
-    mock.course_number = "COMP101"
-    mock.name = "Intro to CS"
-    mock.description = ""
-    mock.term = Term.FALL
-    mock.year = 2026
-    return mock  # type: ignore[return-value]
+def _make_user() -> User:
+    u = MagicMock(spec=User)
+    u.pid = 123
+    return u  # type: ignore
 
 
-def _make_membership(state: MembershipState = MembershipState.ENROLLED):
-    mock = MagicMock()
-    mock.state = state
-    return mock
+def _make_course() -> Course:
+    c = MagicMock(spec=Course)
+    c.id = 1
+    c.term = Term.FALL
+    c.year = 2026
+    return c  # type: ignore
 
 
-def _make_upload_record() -> ExamPdfUpload:
+def _make_membership():
+    m = MagicMock()
+    m.state = MembershipState.ENROLLED
+    return m
+
+
+def _upload_with_id(id_val: int | None = 22) -> ExamPdfUpload:
     return ExamPdfUpload.model_construct(
         _fields_set=None,
-        id=22,
+        id=id_val,
         course_id=1,
-        uploader_pid=123456789,
-        storage_key="courses/1/exam-pdfs/123/key.pdf",
+        uploader_pid=123,
+        storage_key="key",
         original_filename="exam.pdf",
         content_type="application/pdf",
-        size_bytes=123,
+        size_bytes=100,
         created_at=None,
     )
 
 
-def test_typed_extraction_persists_text(monkeypatch) -> None:
-    """When pdfminer extracts typed text, it should be persisted."""
+def _setup(upload_id: int | None = 22):
     upload_repo = MagicMock()
-    upload_repo.create.return_value = _make_upload_record()
+    upload_repo.create.return_value = _upload_with_id(upload_id)
+
     membership_repo = MagicMock()
     membership_repo.get_by_user_and_course.return_value = _make_membership()
-    object_storage = MagicMock()
-    exam_pdf_text_repo = MagicMock()
 
+    object_storage = MagicMock()
+    text_repo = MagicMock()
+
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo)
+    return service, text_repo
+
+
+def mock_import(typed=None, ocr=None):
+    def _mock(name: str):
+        if name == "pdfminer.high_level":
+            if isinstance(typed, Exception):
+                raise typed
+            if typed is None:
+                raise ImportError
+            m = MagicMock()
+            m.extract_text.return_value = typed
+            return m
+
+        if name == "pdf2image":
+            if ocr is None:
+                raise ImportError
+            m = MagicMock()
+            m.convert_from_bytes.return_value = [object()]
+            return m
+
+        if name == "pytesseract":
+            if isinstance(ocr, Exception):
+                raise ocr
+            if ocr is None:
+                raise ImportError
+            m = MagicMock()
+            m.image_to_string.return_value = ocr
+            return m
+
+        raise ImportError
+
+    return _mock
+
+
+# ---------- Tests ----------
+
+
+def test_typed_extraction_success():
+    service, repo = _setup()
+
+    with patch("importlib.import_module", side_effect=mock_import(typed="full text")):
+        service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
+
+    assert "full text" in repo.create.call_args.args[0].extracted_text
+
+
+def test_short_text_triggers_ocr_and_appends():
+    service, repo = _setup()
+
+    with patch("importlib.import_module", side_effect=mock_import(typed="short", ocr="ocr text")):
+        service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
+
+    result = repo.create.call_args.args[0].extracted_text
+    assert "short" in result and "ocr text" in result
+
+
+def test_ocr_empty_hits_else_branch():
+    service, repo = _setup()
+
+    with patch("importlib.import_module", side_effect=mock_import(typed="short", ocr="")):
+        service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
+
+    result = repo.create.call_args.args[0].extracted_text.strip()
+    assert result == "short"
+
+
+def test_pdfminer_failure_triggers_ocr():
+    service, repo = _setup()
+
+    with patch("importlib.import_module", side_effect=mock_import(typed=ImportError(), ocr="ocr text")):
+        service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
+
+    assert "ocr text" in repo.create.call_args.args[0].extracted_text
+
+
+def test_ocr_failure_and_empty_skips_persistence():
+    service, repo = _setup()
+
+    with patch("importlib.import_module", side_effect=mock_import(typed="", ocr=Exception("fail"))):
+        service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
+
+    repo.create.assert_not_called()
+
+
+def test_upload_id_none_and_persistence_exception_paths():
+    service, repo = _setup(upload_id=None)
+
+    service._extract_text_from_pdf = MagicMock(return_value="valid text")
+    repo.create.side_effect = RuntimeError("db fail")
+
+    result = service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
+
+    assert result.id is None
+    repo.create.assert_not_called()
+
+
+def test_extract_text_ocr_runs_when_typed_text_is_short() -> None:
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
+    with patch.object(service, "_extract_text_from_pdf", wraps=service._extract_text_from_pdf):
+        sys.modules.pop("pdfminer.high_level", None)
+        sys.modules.pop("pytesseract", None)
+        sys.modules.pop("pdf2image", None)
+
+        pdfminer_mod: Any = ModuleType("pdfminer.high_level")
+        pdfminer_mod.extract_text = lambda fp: ""
+        sys.modules["pdfminer.high_level"] = pdfminer_mod
+
+        pdf2image_mod: Any = ModuleType("pdf2image")
+        pdf2image_mod.convert_from_bytes = lambda b: [object()]
+        sys.modules["pdf2image"] = pdf2image_mod
+
+        pytesseract_mod: Any = ModuleType("pytesseract")
+        pytesseract_mod.image_to_string = lambda img: "ocr extracted text"
+        sys.modules["pytesseract"] = pytesseract_mod
+
+        result = service._extract_text_from_pdf(b"%PDF-1.7")
+
+    assert result == "ocr extracted text"
+
+
+def test_extract_text_ocr_skipped_when_typed_text_is_long() -> None:
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
+    sys.modules.pop("pdfminer.high_level", None)
     pdfminer_mod: Any = ModuleType("pdfminer.high_level")
-    pdfminer_mod.extract_text = lambda fp: "typed extracted content"
+    pdfminer_mod.extract_text = lambda fp: "a" * 100
     sys.modules["pdfminer.high_level"] = pdfminer_mod
 
-    service = ExamPdfService(upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
+    result = service._extract_text_from_pdf(b"%PDF-1.7")
 
-    service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF-1.7")
-
-    assert exam_pdf_text_repo.create.called
-    created_arg = exam_pdf_text_repo.create.call_args.args[0]
-    assert "typed extracted content" in created_arg.extracted_text
+    assert result == "a" * 100
 
 
-def test_ocr_fallback_persists_text_when_typed_empty(monkeypatch) -> None:
-    """When typed extraction is empty, OCR fallback should run and be persisted."""
-    upload_repo = MagicMock()
-    upload_repo.create.return_value = _make_upload_record()
-    membership_repo = MagicMock()
-    membership_repo.get_by_user_and_course.return_value = _make_membership()
-    object_storage = MagicMock()
-    exam_pdf_text_repo = MagicMock()
+def test_extract_text_returns_empty_when_ocr_yields_whitespace() -> None:
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
+    sys.modules.pop("pdfminer.high_level", None)
+    sys.modules.pop("pytesseract", None)
+    sys.modules.pop("pdf2image", None)
 
     pdfminer_mod: Any = ModuleType("pdfminer.high_level")
     pdfminer_mod.extract_text = lambda fp: ""
     sys.modules["pdfminer.high_level"] = pdfminer_mod
 
     pdf2image_mod: Any = ModuleType("pdf2image")
-    pdf2image_mod.convert_from_bytes = lambda b: [object(), object()]
+    pdf2image_mod.convert_from_bytes = lambda b: [object()]
     sys.modules["pdf2image"] = pdf2image_mod
 
     pytesseract_mod: Any = ModuleType("pytesseract")
-    pytesseract_mod.image_to_string = lambda img: "ocr extracted"
+    pytesseract_mod.image_to_string = lambda img: "   "
     sys.modules["pytesseract"] = pytesseract_mod
 
-    service = ExamPdfService(upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
+    result = service._extract_text_from_pdf(b"%PDF-1.7")
 
-    service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF-1.7")
-
-    assert exam_pdf_text_repo.create.called
-    created_arg = exam_pdf_text_repo.create.call_args.args[0]
-    assert "ocr extracted" in created_arg.extracted_text
+    assert result == ""
 
 
-def test_extraction_failures_do_not_prevent_upload(monkeypatch) -> None:
-    """If extraction raises, upload should still succeed and no text persisted."""
-    upload_repo = MagicMock()
-    upload_repo.create.return_value = _make_upload_record()
-    membership_repo = MagicMock()
-    membership_repo.get_by_user_and_course.return_value = _make_membership()
-    object_storage = MagicMock()
-    exam_pdf_text_repo = MagicMock()
+def test_extract_text_returns_empty_when_ocr_deps_unavailable() -> None:
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
-    if "pdfminer.high_level" in sys.modules:
-        del sys.modules["pdfminer.high_level"]
-    sys.modules["pdfminer"] = ModuleType("pdfminer")
+    sys.modules.pop("pdfminer.high_level", None)
+    sys.modules.pop("pytesseract", None)
+    sys.modules.pop("pdf2image", None)
 
-    if "pytesseract" in sys.modules:
-        del sys.modules["pytesseract"]
+    pdfminer_mod: Any = ModuleType("pdfminer.high_level")
+    pdfminer_mod.extract_text = lambda fp: ""
+    sys.modules["pdfminer.high_level"] = pdfminer_mod
 
-    service = ExamPdfService(upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
+    result = service._extract_text_from_pdf(b"%PDF-1.7")
 
-    service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF-1.7")
-
-    assert upload_repo.create.called
-    assert not exam_pdf_text_repo.create.called
+    assert result == ""

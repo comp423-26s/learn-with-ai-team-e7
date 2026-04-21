@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from learnwithai.errors import AuthorizationError
 from learnwithai.interfaces import ObjectStorage
+from learnwithai.repositories.exam_pdf_text_repository import ExamPdfTextRepository
 from learnwithai.repositories.exam_pdf_upload_repository import ExamPdfUploadRepository
 from learnwithai.repositories.membership_repository import MembershipRepository
 from learnwithai.services.exam_pdf_service import ExamPdfService
@@ -18,6 +19,7 @@ def _build_service(
     exam_pdf_upload_repo: ExamPdfUploadRepository | None = None,
     membership_repo: MembershipRepository | None = None,
     object_storage: ObjectStorage | None = None,
+    exam_pdf_text_repo: ExamPdfTextRepository | None = None,
 ) -> ExamPdfService:
     if exam_pdf_upload_repo is None:
         exam_pdf_upload_repo = MagicMock(spec=ExamPdfUploadRepository)
@@ -25,7 +27,9 @@ def _build_service(
         membership_repo = MagicMock(spec=MembershipRepository)
     if object_storage is None:
         object_storage = MagicMock(spec=ObjectStorage)
-    return ExamPdfService(exam_pdf_upload_repo, membership_repo, object_storage)
+    if exam_pdf_text_repo is None:
+        exam_pdf_text_repo = MagicMock(spec=ExamPdfTextRepository)
+    return ExamPdfService(exam_pdf_upload_repo, membership_repo, object_storage, exam_pdf_text_repo)
 
 
 def _make_user(pid: int = 123456789) -> User:

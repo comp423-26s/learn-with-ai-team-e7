@@ -10,6 +10,7 @@ from .exam_pdf_text import ExamPdfText
 from .exam_pdf_upload import ExamPdfUpload
 from .membership import Membership
 from .operator import Operator, OperatorPermission, OperatorRole
+from .practice_material import PracticeMaterial
 from .submission import Submission
 from .user import User
 
@@ -31,6 +32,7 @@ __all__ = [
     "Operator",
     "OperatorPermission",
     "OperatorRole",
+    "PracticeMaterial",
     "Submission",
     "User",
 ]

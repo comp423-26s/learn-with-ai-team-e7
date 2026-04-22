@@ -176,6 +176,43 @@ def test_lifespan_context_skips_consumer_in_test_environment(
     assert called is False
 
 
+def test_lifespan_context_ensures_exam_pdf_schema_on_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called = False
+
+    async def fake_consume_job_updates(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    def fake_ensure_exam_pdf_upload_analysis_column() -> None:
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(lifespan_module, "consume_job_updates", fake_consume_job_updates)
+    monkeypatch.setattr(
+        lifespan_module, "ensure_exam_pdf_upload_analysis_column", fake_ensure_exam_pdf_upload_analysis_column
+    )
+    monkeypatch.setattr(
+        lifespan_module,
+        "Settings",
+        lambda: Settings.model_construct(
+            _fields_set=None,
+            environment="test",
+            app_name="learnwithai",
+        ),
+    )
+
+    async def exercise() -> None:
+        lifespan = lifespan_module._lifespan_context(FastAPI())
+        await anext(lifespan)
+        with pytest.raises(StopAsyncIteration):
+            await anext(lifespan)
+
+    asyncio.run(exercise())
+
+    assert called is True
+
+
 def test_lifespan_context_starts_and_cancels_consumer_in_non_test_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

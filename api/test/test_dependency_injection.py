@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -11,8 +11,10 @@ from fastapi import HTTPException
 from api.di import (
     activity_repository_factory,
     activity_service_factory,
+    ai_completion_service_factory,
     async_job_repository_factory,
     course_repository_factory,
+    exam_analysis_service_factory,
     exam_pdf_service_factory,
     exam_pdf_text_repository_factory,
     exam_pdf_upload_repository_factory,
@@ -145,9 +147,26 @@ def test_roster_upload_service_factory_returns_service() -> None:
 def test_exam_pdf_service_factory_returns_service() -> None:
     from learnwithai.services.exam_pdf_service import ExamPdfService
 
-    result = exam_pdf_service_factory(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    result = exam_pdf_service_factory(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     assert isinstance(result, ExamPdfService)
+
+
+def test_ai_completion_service_factory_returns_fallback_without_api_key() -> None:
+    settings = MagicMock()
+    settings.openai_api_key = None
+
+    result = ai_completion_service_factory(settings)
+
+    assert result.complete(system_prompt="sys", user_prompt="user") == "{}"
+
+
+def test_exam_analysis_service_factory_returns_service() -> None:
+    from learnwithai.services.exam_analysis_service import ExamAnalysisService
+
+    result = exam_analysis_service_factory(MagicMock(), MagicMock())
+
+    assert isinstance(result, ExamAnalysisService)
 
 
 def test_object_storage_factory_raises_without_bucket() -> None:
@@ -156,11 +175,27 @@ def test_object_storage_factory_raises_without_bucket() -> None:
     settings.storage_s3_region = "us-east-1"
     settings.storage_s3_endpoint = None
     settings.storage_s3_key_prefix = ""
+    settings.is_development = False
 
     with pytest.raises(HTTPException) as exc_info:
         object_storage_factory(settings)
 
     assert exc_info.value.status_code == 500
+
+
+def test_object_storage_factory_returns_noop_without_bucket_in_development() -> None:
+    from learnwithai.services.s3_object_storage import NoopObjectStorage
+
+    settings = MagicMock()
+    settings.storage_s3_bucket = None
+    settings.storage_s3_region = "us-east-1"
+    settings.storage_s3_endpoint = None
+    settings.storage_s3_key_prefix = ""
+    settings.is_development = True
+
+    result = object_storage_factory(settings)
+
+    assert isinstance(result, NoopObjectStorage)
 
 
 def test_object_storage_factory_returns_s3_storage() -> None:
@@ -339,3 +374,17 @@ def test_job_control_service_factory_returns_service() -> None:
     result = job_control_service_factory(session, operator_svc, settings)
 
     assert isinstance(result, JobControlService)
+
+
+@patch("api.di.AiCompletionService")
+def test_ai_completion_service_factory_returns_real_service(mock_service_class):
+    mock_settings = MagicMock()
+    mock_settings.openai_api_key = "sk-test-key"
+    mock_settings.openai_model = "gpt-4"
+    mock_settings.openai_endpoint = None
+    mock_settings.openai_api_version = None
+
+    service = ai_completion_service_factory(mock_settings)
+
+    mock_service_class.assert_called_once()
+    assert isinstance(service, MagicMock)

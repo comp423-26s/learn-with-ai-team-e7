@@ -604,3 +604,141 @@ def test_summarize_analysis_promotes_both_ends_when_all_topics_are_needs_review(
     assert any(line.topic == "Calculus" for line in summary.needs_review)
     assert len(summary.strengths) >= 1
     assert len(summary.weaknesses) >= 1
+
+
+def test_analyze_from_text_returns_llm_result_when_valid() -> None:
+    ai_completion = MagicMock()
+    service = ExamAnalysisService(ai_completion, MagicMock())
+    ai_completion.complete.return_value = json.dumps(
+        {
+            "topic_summaries": [
+                {
+                    "topic": "Algebra",
+                    "question_ids": ["1"],
+                    "average_score_pct": 0.9,
+                    "performance": "strong",
+                },
+                {
+                    "topic": "Calculus",
+                    "question_ids": ["2"],
+                    "average_score_pct": 0.6,
+                    "performance": "needs_review",
+                },
+                {
+                    "topic": "Probability",
+                    "question_ids": ["3"],
+                    "average_score_pct": 0.4,
+                    "performance": "weak",
+                },
+            ],
+            "question_mappings": [
+                {
+                    "question_id": "1",
+                    "topic": "Algebra",
+                    "performance": "strong",
+                    "score_earned": 9,
+                    "score_possible": 10,
+                },
+                {
+                    "question_id": "2",
+                    "topic": "Calculus",
+                    "performance": "needs_review",
+                    "score_earned": 6,
+                    "score_possible": 10,
+                },
+                {
+                    "question_id": "3",
+                    "topic": "Probability",
+                    "performance": "weak",
+                    "score_earned": 4,
+                    "score_possible": 10,
+                },
+            ],
+            "strengths": ["Algebra"],
+            "weaknesses": ["Probability"],
+            "needs_review": ["Calculus"],
+        }
+    )
+
+    result = service.analyze_from_text("Question 1 ... 9/10")
+
+    assert result.strengths == ["Algebra"]
+    assert result.weaknesses == ["Probability"]
+    assert len(result.topic_summaries) == 3
+
+
+def test_analyze_from_text_falls_back_when_llm_json_invalid() -> None:
+    ai_completion = MagicMock()
+    service = ExamAnalysisService(ai_completion, MagicMock())
+    ai_completion.complete.return_value = "not-json"
+
+    result = service.analyze_from_text("Question 1) Evaluate function. Score: 7/10")
+
+    assert isinstance(result, ExamPerformanceAnalysis)
+    assert len(result.topic_summaries) >= 3
+    assert result.question_mappings
+
+
+def test_analyze_from_text_returns_fallback_when_text_is_empty() -> None:
+    service = ExamAnalysisService(MagicMock(), MagicMock())
+
+    result = service.analyze_from_text("   ")
+
+    assert result is not None
+    assert result.question_mappings[0].performance == "needs_review"
+
+    assert result.question_mappings[0].question_id == "1"
+
+
+def test_parse_llm_response_from_text_rejects_missing_mappings() -> None:
+    service = ExamAnalysisService(MagicMock(), MagicMock())
+    response = json.dumps(
+        {
+            "topic_summaries": [
+                {
+                    "topic": "Algebra",
+                    "question_ids": ["1"],
+                    "average_score_pct": 0.9,
+                    "performance": "strong",
+                },
+                {
+                    "topic": "Calculus",
+                    "question_ids": ["2"],
+                    "average_score_pct": 0.6,
+                    "performance": "needs_review",
+                },
+                {
+                    "topic": "Geometry",
+                    "question_ids": ["3"],
+                    "average_score_pct": 0.4,
+                    "performance": "weak",
+                },
+            ],
+            "question_mappings": [],
+            "strengths": ["Algebra"],
+            "weaknesses": ["Geometry"],
+            "needs_review": ["Calculus"],
+        }
+    )
+
+    assert service._parse_llm_response_from_text(response) is None
+
+
+def test_build_fallback_from_text_without_question_ids_generates_defaults() -> None:
+    service = ExamAnalysisService(MagicMock(), MagicMock())
+
+    result = service._build_fallback_from_text("No explicit numbered questions in this exam text")
+
+    assert len(result.question_mappings) == 5
+    assert len(result.topic_summaries) >= 3
+
+
+def test_extract_question_ids_finds_common_patterns() -> None:
+    service = ExamAnalysisService(MagicMock(), MagicMock())
+    text = "Question 2 Solve this.\n1) Compute derivative\n3 pts possible"
+
+    ids = service._extract_question_ids(text)
+
+    assert "1" in ids
+    assert "2" in ids
+    assert "3" in ids

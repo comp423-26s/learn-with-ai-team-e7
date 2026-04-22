@@ -4,23 +4,59 @@
  */
 
 import { TestBed } from '@angular/core/testing';
-import { GradingAnalyzerService } from './grading-analyzer.service';
 import { Api } from '../../../api/generated/api';
+import { GradingAnalyzerService } from './grading-analyzer.service';
 
 describe('GradingAnalyzerService', () => {
   let service: GradingAnalyzerService;
+  let api: { invoke: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    const api = { invoke: vi.fn() };
+    api = { invoke: vi.fn() };
     TestBed.configureTestingModule({
       providers: [{ provide: Api, useValue: api }],
     });
     service = TestBed.inject(GradingAnalyzerService);
   });
 
-  it('resolves with a submissionId', async () => {
+  it('uploads and returns analysis when available', async () => {
+    api.invoke
+      .mockResolvedValueOnce({ id: 42 })
+      .mockResolvedValueOnce({ analysis_data: { strengths: ['Algebra'] } });
+
     const file = new File(['pdf content'], 'exam.pdf', { type: 'application/pdf' });
-    const result = await service.uploadExam(1, file, 'Exam 1', 85);
-    expect(result).toEqual({ submissionId: 1 });
+    const result = await service.uploadExam(1, file);
+
+    expect(result.uploadId).toBe(42);
+    expect(result.analysis).toEqual({ strengths: ['Algebra'] });
+    expect(api.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns null analysis when fetch fails', async () => {
+    api.invoke.mockResolvedValueOnce({ id: 42 }).mockRejectedValueOnce(new Error('not ready'));
+
+    const file = new File(['pdf content'], 'exam.pdf', { type: 'application/pdf' });
+    const result = await service.uploadExam(1, file);
+
+    expect(result).toEqual({ uploadId: 42, analysis: null });
+  });
+
+  it('gets persisted analysis when available', async () => {
+    api.invoke.mockResolvedValueOnce({
+      analysis_data: { strengths: ['Algebra'], topic_summaries: [] },
+    });
+
+    const result = await service.getExamAnalysis(3, 11);
+
+    expect(result).toEqual({ strengths: ['Algebra'], topic_summaries: [] });
+    expect(api.invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when persisted analysis fetch fails', async () => {
+    api.invoke.mockRejectedValueOnce(new Error('not ready'));
+
+    const result = await service.getExamAnalysis(3, 11);
+
+    expect(result).toBeNull();
   });
 });

@@ -16,3 +16,11 @@ class ExamPdfUploadResponse(BaseModel):
     content_type: str
     size_bytes: int
     created_at: datetime
+
+
+class ExamPdfAnalysisResponse(BaseModel):
+    """Response containing analysis results for an uploaded exam PDF."""
+
+    upload_id: int
+    analysis_data: dict
+    created_at: datetime

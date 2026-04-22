@@ -1,0 +1,31 @@
+.loading-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.error-card {
+  max-width: 560px;
+}
+
+.results-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.summary-card {
+  grid-column: 1 / -1;
+}
+
+.topic-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.topic-table th,
+.topic-table td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}

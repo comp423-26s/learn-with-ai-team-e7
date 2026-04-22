@@ -8,13 +8,16 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException, UploadFile
+from fastapi.testclient import TestClient
 from learnwithai.errors import AuthorizationError
 from learnwithai.tables.exam_pdf_upload import ExamPdfUpload
 from starlette.datastructures import Headers
 
-from api.models import ExamPdfUploadResponse
+from api.di import exam_pdf_service_factory, get_authenticated_user, get_course_by_path_id
+from api.main import app
+from api.models import ExamPdfAnalysisResponse, ExamPdfUploadResponse
 from api.routes import exam_pdfs
-from api.routes.exam_pdfs import upload_exam_pdf
+from api.routes.exam_pdfs import get_exam_analysis, upload_exam_pdf
 
 
 def _stub_user(pid: int = 123456789) -> MagicMock:
@@ -51,6 +54,7 @@ def _stub_upload_record(record_id: int = 22, course_id: int = 1, uploader_pid: i
     mock.content_type = "application/pdf"
     mock.size_bytes = 13
     mock.created_at = datetime(2026, 4, 15, tzinfo=timezone.utc)
+    mock.analysis_data = {"strengths": ["Algebra"], "weaknesses": ["Geometry"]}
     return mock
 
 
@@ -67,6 +71,27 @@ async def test_upload_exam_pdf_returns_success_response() -> None:
     assert isinstance(result, ExamPdfUploadResponse)
     assert result.id == 22
     assert result.storage_key == "courses/1/exam-pdfs/123/key.pdf"
+    exam_pdf_svc.upload_pdf.assert_called_once()
+
+
+@pytest.mark.integration
+def test_upload_exam_pdf_accepts_multipart_request(client: TestClient) -> None:
+    subject = _stub_user()
+    course = _stub_course()
+    exam_pdf_svc = MagicMock()
+    exam_pdf_svc.upload_pdf.return_value = _stub_upload_record()
+
+    app.dependency_overrides[get_authenticated_user] = lambda: subject
+    app.dependency_overrides[get_course_by_path_id] = lambda: course
+    app.dependency_overrides[exam_pdf_service_factory] = lambda: exam_pdf_svc
+
+    response = client.post(
+        "/api/courses/1/exam-pdfs",
+        files={"file": ("exam.pdf", b"%PDF-1.7\n%hello", "application/pdf")},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["id"] == 22
     exam_pdf_svc.upload_pdf.assert_called_once()
 
 
@@ -147,3 +172,80 @@ async def test_upload_exam_pdf_propagates_authorization_error() -> None:
 
     with pytest.raises(AuthorizationError):
         await upload_exam_pdf(subject, course, exam_pdf_svc, file)
+
+
+@pytest.mark.anyio
+async def test_get_exam_analysis_returns_persisted_analysis() -> None:
+    subject = _stub_user()
+    course = _stub_course()
+    upload_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+    upload_repo.get_by_id.return_value = _stub_upload_record()
+
+    result = await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+
+    assert isinstance(result, ExamPdfAnalysisResponse)
+    assert result.upload_id == 22
+    assert result.analysis_data["strengths"] == ["Algebra"]
+
+
+@pytest.mark.anyio
+async def test_get_exam_analysis_returns_404_when_analysis_missing() -> None:
+    subject = _stub_user()
+    course = _stub_course()
+    upload_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+    upload = _stub_upload_record()
+    upload.analysis_data = None
+    upload_repo.get_by_id.return_value = upload
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_get_exam_analysis_returns_403_when_not_enrolled() -> None:
+    subject = _stub_user()
+    course = _stub_course()
+    upload_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_get_exam_analysis_returns_404_when_upload_missing() -> None:
+    subject = _stub_user()
+    course = _stub_course()
+    upload_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+    upload_repo.get_by_id.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_exam_analysis(subject, course, 999, upload_repo, membership_repo)
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_get_exam_analysis_returns_404_for_mismatched_course() -> None:
+    subject = _stub_user()
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+    upload_repo.get_by_id.return_value = _stub_upload_record(course_id=2)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+
+    assert exc_info.value.status_code == 404

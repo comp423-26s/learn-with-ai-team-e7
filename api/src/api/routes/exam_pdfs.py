@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Path, UploadFile
 from learnwithai.services.exam_pdf_service import ExamPdfService
 
-from ..di import AuthenticatedUserDI, CourseByCourseIDPathDI, ExamPdfServiceDI
-from ..models import ExamPdfUploadResponse
+from ..di import (
+    AuthenticatedUserDI,
+    CourseByCourseIDPathDI,
+    ExamPdfServiceDI,
+    ExamPdfUploadRepositoryDI,
+    MembershipRepositoryDI,
+)
+from ..models import ExamPdfAnalysisResponse, ExamPdfUploadResponse
 
 MAX_PDF_BYTES = 50 * 1024 * 1024
 logger = logging.getLogger(__name__)
@@ -34,7 +41,7 @@ async def upload_exam_pdf(
     subject: AuthenticatedUserDI,
     course: CourseByCourseIDPathDI,
     exam_pdf_svc: ExamPdfServiceDI,
-    file: UploadFile,
+    file: Annotated[UploadFile, File()],
 ) -> ExamPdfUploadResponse:
     """Validates and stores an uploaded exam PDF.
 
@@ -67,6 +74,65 @@ async def upload_exam_pdf(
         original_filename=upload.original_filename,
         content_type=upload.content_type,
         size_bytes=upload.size_bytes,
+        created_at=upload.created_at,
+    )
+
+
+@router.get(
+    "/{upload_id}/analysis",
+    response_model=ExamPdfAnalysisResponse,
+    status_code=200,
+    summary="Retrieve exam analysis",
+    response_description="Structured analysis of an uploaded exam PDF.",
+    responses={
+        401: {"description": "Not authenticated."},
+        403: {"description": "Insufficient permissions."},
+        404: {"description": "Upload not found or analysis not available."},
+    },
+)
+async def get_exam_analysis(
+    subject: AuthenticatedUserDI,
+    course: CourseByCourseIDPathDI,
+    upload_id: Annotated[int, Path(gt=0)],
+    exam_pdf_upload_repo: ExamPdfUploadRepositoryDI,
+    membership_repo: MembershipRepositoryDI,
+) -> ExamPdfAnalysisResponse:
+    """Retrieves the analysis results for an uploaded exam PDF.
+
+    Args:
+        subject: Authenticated user requesting the analysis.
+        course: Course loaded via path dependency.
+        upload_id: Upload identifier from the URL path.
+        exam_pdf_upload_repo: Repository for loading upload records.
+
+    Returns:
+        Structured analysis with topics, strengths, and weaknesses.
+
+    Raises:
+        HTTPException: If the upload is not found, analysis is not available, or user lacks permission.
+    """
+    membership = membership_repo.get_by_user_and_course(subject, course)
+    if membership is None:
+        raise HTTPException(status_code=403, detail="Insufficient permissions.")
+
+    upload = exam_pdf_upload_repo.get_by_id(upload_id)
+    if upload is None:
+        raise HTTPException(status_code=404, detail="Upload not found.")
+
+    # Verify user is accessing an upload from their enrolled course
+    if upload.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Upload not found.")
+
+    if upload.analysis_data is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis not available. Upload may have failed or analysis is still processing.",
+        )
+
+    assert upload.id is not None
+    return ExamPdfAnalysisResponse(
+        upload_id=upload.id,
+        analysis_data=upload.analysis_data,
         created_at=upload.created_at,
     )
 

@@ -1,0 +1,94 @@
+@if (loading()) {
+  <div class="loading-wrap">
+    <mat-spinner diameter="28" />
+    <p>Loading exam analysis...</p>
+  </div>
+} @else if (errorMessage()) {
+  <mat-card class="error-card" appearance="outlined">
+    <p role="alert">{{ errorMessage() }}</p>
+    <a mat-button routerLink="../">Back to Upload</a>
+  </mat-card>
+} @else {
+  <div class="results-grid">
+    <mat-card appearance="outlined" class="summary-card">
+      <mat-card-header>
+        <mat-card-title>Topic Summary</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (topics().length === 0) {
+          <p>No topic summary available.</p>
+        } @else {
+          <table class="topic-table">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Performance</th>
+                <th>Average Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (topic of topics(); track topic.topic) {
+                <tr>
+                  <td>{{ topic.topic }}</td>
+                  <td>{{ topic.performance }}</td>
+                  <td>{{ (topic.average_score_pct * 100).toFixed(1) }}%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Strengths</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (strengths().length === 0) {
+          <p>No strengths identified.</p>
+        } @else {
+          <ul>
+            @for (item of strengths(); track item) {
+              <li>{{ item }}</li>
+            }
+          </ul>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Weaknesses</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (weaknesses().length === 0) {
+          <p>No weaknesses identified.</p>
+        } @else {
+          <ul>
+            @for (item of weaknesses(); track item) {
+              <li>{{ item }}</li>
+            }
+          </ul>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Needs Review</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (needsReview().length === 0) {
+          <p>No topics currently marked for review.</p>
+        } @else {
+          <ul>
+            @for (item of needsReview(); track item) {
+              <li>{{ item }}</li>
+            }
+          </ul>
+        }
+      </mat-card-content>
+    </mat-card>
+  </div>
+}

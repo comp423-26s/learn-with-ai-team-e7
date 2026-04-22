@@ -14,28 +14,7 @@
     </mat-card-actions>
   </mat-card>
 } @else {
-  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="upload-form">
-    <mat-form-field appearance="outline">
-      <mat-label>Assignment name</mat-label>
-      <input
-        matInput
-        formControlName="assignmentName"
-        placeholder="e.g. Exam
-  1"
-      />
-    </mat-form-field>
-
-    <mat-form-field appearance="outline">
-      <mat-label>Your score</mat-label>
-      <input
-        matInput
-        type="number"
-        formControlName="score"
-        placeholder="e.g.
-  85"
-      />
-    </mat-form-field>
-
+  <form (submit)="onSubmit($event)" class="upload-form">
     <div class="file-input-area">
       <button mat-stroked-button type="button" (click)="fileInput.click()">
         <mat-icon>upload_file</mat-icon>
@@ -53,11 +32,7 @@
       />
     </div>
 
-    <button
-      mat-flat-button
-      type="submit"
-      [disabled]="form.invalid || !selectedFile() || uploading()"
-    >
+    <button mat-flat-button type="submit" [disabled]="!selectedFile() || uploading()">
       @if (uploading()) {
         <mat-spinner diameter="20" />
       } @else {

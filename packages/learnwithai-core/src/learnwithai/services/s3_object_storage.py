@@ -50,3 +50,11 @@ class S3ObjectStorage:
         if not self._key_prefix:
             return clean_key
         return f"{self._key_prefix}/{clean_key}"
+
+
+class NoopObjectStorage:
+    """Development fallback that accepts uploads without persisting them externally."""
+
+    def upload_pdf(self, key: str, pdf_bytes: bytes) -> None:
+        """Accepts the upload and intentionally discards the bytes."""
+        return None

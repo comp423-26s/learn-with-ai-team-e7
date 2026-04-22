@@ -47,11 +47,6 @@ export const routes: Routes = [
               import('./courses/course-detail/roster/roster.component').then((m) => m.Roster),
           },
           {
-            path: 'add-member',
-            loadComponent: () =>
-              import('./courses/add-member/add-member.component').then((m) => m.AddMember),
-          },
-          {
             path: 'activities',
             children: [
               {
@@ -120,6 +115,13 @@ export const routes: Routes = [
                     (m) => m.GradingAnalyzer,
                   ),
               },
+              {
+                path: 'grading-analyzer/results',
+                loadComponent: () =>
+                  import('./courses/course-detail/tools/grading-analyzer/analysis-results.component').then(
+                    (m) => m.AnalysisResultsComponent,
+                  ),
+              },
             ],
           },
           {
@@ -127,6 +129,13 @@ export const routes: Routes = [
             loadComponent: () =>
               import('./courses/course-detail/tools/grading-analyzer/grading-analyzer.component').then(
                 (m) => m.GradingAnalyzer,
+              ),
+          },
+          {
+            path: 'student/tools/grading-analyzer/results',
+            loadComponent: () =>
+              import('./courses/course-detail/tools/grading-analyzer/analysis-results.component').then(
+                (m) => m.AnalysisResultsComponent,
               ),
           },
           {

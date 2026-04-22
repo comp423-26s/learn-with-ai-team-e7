@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from learnwithai.services.s3_object_storage import S3ObjectStorage
+from learnwithai.services.s3_object_storage import NoopObjectStorage, S3ObjectStorage
 
 
 def test_upload_pdf_calls_put_object_with_secure_defaults() -> None:
@@ -37,3 +37,16 @@ def test_upload_pdf_without_prefix_uses_raw_key() -> None:
     storage.upload_pdf("courses/2/exam-pdfs/123/test.pdf", b"%PDF")
 
     assert s3_client.put_object.call_args.kwargs["Key"] == "courses/2/exam-pdfs/123/test.pdf"
+
+
+def test_noop_object_storage_discards_bytes_gracefully():
+    # Arrange
+    storage = NoopObjectStorage()
+    dummy_key = "exams/test.pdf"
+    dummy_bytes = b"%PDF-1.7 dummy content"
+
+    # Act
+    result = storage.upload_pdf(dummy_key, dummy_bytes)
+
+    # Assert
+    assert result is None

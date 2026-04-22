@@ -2,22 +2,22 @@ import { Injectable, inject } from '@angular/core';
 import { Api } from '../../../api/generated/api';
 import { uploadExamPdf } from '../../../api/generated/fn/exam-pd-fs/upload-exam-pdf';
 
-/** Handles HTTP communication with the grading analyzer API. */
+/** handle HTTP communication with the grading analyzer API */
 @Injectable({ providedIn: 'root' })
 export class GradingAnalyzerService {
   private api = inject(Api);
 
-  /** Uploads a graded exam PDF, fetches analysis results, and returns both.
+  /** upload graded exam PDF, fetch analysis results, & return both
    *
    * Args:
-   * courseId: The course ID for the upload
-   * file: The exam PDF file to upload
+   * courseId: the course ID for the upload
+   * file: the exam PDF file to upload
    *
    * Returns:
-   * An object with uploadId and structured analysis results, or null if analysis fails
+   * object with uploadId and structured analysis results, or null if analysis fails
    *
    * Throws:
-   * - Rethrows any HTTP errors from the upload or analysis fetch
+   * rethrow any HTTP errors from the upload or analysis fetch
    */
   async uploadExam(
     courseId: number,
@@ -31,9 +31,9 @@ export class GradingAnalyzerService {
 
     const uploadId = uploadResponse.id;
 
-    // Try to fetch analysis immediately; if not yet ready, return null
+    // fetch analysis immediately; if not yet ready, return null
     try {
-      // Dynamically import the get function after API sync
+      // import the get function after API sync
       const { getExamAnalysis } =
         await import('../../../api/generated/fn/exam-pd-fs/get-exam-analysis');
 
@@ -47,7 +47,7 @@ export class GradingAnalyzerService {
         analysis: analysisResponse.analysis_data as Record<string, unknown>,
       };
     } catch {
-      // Analysis not ready or endpoint doesn't exist yet; return upload without analysis
+      // if analysis not ready or endpoint doesn't exist yet; return upload without analysis
       return {
         uploadId,
         analysis: null,
@@ -55,7 +55,7 @@ export class GradingAnalyzerService {
     }
   }
 
-  /** Retrieves persisted analysis for an uploaded exam PDF. */
+  /** retrieve analysis for an uploaded exam PDF. */
   async getExamAnalysis(
     courseId: number,
     uploadId: number,

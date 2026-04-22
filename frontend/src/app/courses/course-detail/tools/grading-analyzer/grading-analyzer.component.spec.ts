@@ -6,6 +6,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ActivatedRoute } from '@angular/router';
+import { Router } from '@angular/router';
 import { convertToParamMap } from '@angular/router';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { GradingAnalyzer } from './grading-analyzer.component';
@@ -15,7 +16,14 @@ import { PageTitleService } from '../../../../page-title.service';
 const flush = () => new Promise((resolve) => setTimeout(resolve));
 
 describe('GradingAnalyzer', () => {
-  async function setup(options: { uploadError?: boolean; includeRouteId?: boolean } = {}) {
+  async function setup(
+    options: {
+      uploadError?: boolean;
+      includeRouteId?: boolean;
+      routePath?: string;
+      navigateResult?: boolean;
+    } = {},
+  ) {
     const mockService = {
       uploadExam: options.uploadError
         ? vi.fn(() => Promise.reject(new Error('fail')))
@@ -28,7 +36,10 @@ describe('GradingAnalyzer', () => {
     };
 
     const mockRoute = {
-      snapshot: { paramMap: convertToParamMap({}) },
+      snapshot: {
+        paramMap: convertToParamMap({}),
+        routeConfig: options.routePath ? { path: options.routePath } : undefined,
+      },
       parent: {
         snapshot: { paramMap: convertToParamMap({}) },
         parent: {
@@ -51,11 +62,13 @@ describe('GradingAnalyzer', () => {
     });
 
     const fixture = TestBed.createComponent(GradingAnalyzer);
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigate').mockResolvedValue(options.navigateResult ?? true);
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
 
-    return { fixture, mockService };
+    return { fixture, mockService, router };
   }
 
   it('should set the page title', async () => {
@@ -90,6 +103,20 @@ describe('GradingAnalyzer', () => {
     expect(el.textContent).toContain('Only PDF files are accepted.');
   });
 
+  it('should clear a previous valid file when a non-PDF is selected', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const validFile = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(validFile);
+
+    const invalidFile = new File(['text'], 'notes.txt', { type: 'text/plain' });
+    const event = { target: { files: [invalidFile] } } as unknown as Event;
+    component['onFileSelected'](event);
+
+    expect(component['selectedFile']()).toBeNull();
+  });
+
   it('should reject a PDF larger than 50 MB', async () => {
     const { fixture } = await setup();
     const component = fixture.componentInstance;
@@ -105,6 +132,21 @@ describe('GradingAnalyzer', () => {
     expect(el.textContent).toContain('File must be 50MB or smaller.');
   });
 
+  it('should clear a previous valid file when an oversized PDF is selected', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const validFile = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(validFile);
+
+    const bigContent = new Uint8Array(51 * 1024 * 1024);
+    const oversizedFile = new File([bigContent], 'big.pdf', { type: 'application/pdf' });
+    const event = { target: { files: [oversizedFile] } } as unknown as Event;
+    component['onFileSelected'](event);
+
+    expect(component['selectedFile']()).toBeNull();
+  });
+
   it('should accept a valid PDF file', async () => {
     const { fixture } = await setup();
     const component = fixture.componentInstance;
@@ -118,6 +160,31 @@ describe('GradingAnalyzer', () => {
     expect(component['errorMessage']()).toBe('');
     const el: HTMLElement = fixture.nativeElement;
     expect(el.textContent).toContain('exam.pdf');
+  });
+
+  it('should replace an existing selected file with a new valid PDF', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const firstFile = new File(['pdf-one'], 'first.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(firstFile);
+
+    const secondFile = new File(['pdf-two'], 'second.pdf', { type: 'application/pdf' });
+    const event = { target: { files: [secondFile] } } as unknown as Event;
+    component['onFileSelected'](event);
+
+    expect(component['selectedFile']()).toBe(secondFile);
+  });
+
+  it('should accept a .pdf extension when mime type is empty', async () => {
+    const { fixture } = await setup();
+    const component = fixture.componentInstance;
+
+    const file = new File(['pdf'], 'scan.PDF', { type: '' });
+    const event = { target: { files: [file] } } as unknown as Event;
+    component['onFileSelected'](event);
+
+    expect(component['selectedFile']()).toBe(file);
   });
 
   it('should do nothing when no file is in the event', async () => {
@@ -174,7 +241,7 @@ describe('GradingAnalyzer', () => {
   });
 
   it('should upload and show success state', async () => {
-    const { fixture, mockService } = await setup();
+    const { fixture, mockService, router } = await setup();
     const component = fixture.componentInstance;
 
     const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
@@ -184,7 +251,35 @@ describe('GradingAnalyzer', () => {
     fixture.detectChanges();
 
     expect(mockService.uploadExam).toHaveBeenCalledWith(3, file);
+    expect(router.navigate).toHaveBeenCalled();
     expect(component['uploadSuccess']()).toBe(true);
+  });
+
+  it('should route to student grading analyzer results path for student tool pages', async () => {
+    const { fixture, router } = await setup({ routePath: 'student/tools/grading-analyzer' });
+    const component = fixture.componentInstance;
+
+    const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(file);
+
+    await component['onSubmit']();
+
+    expect(router.navigate).toHaveBeenCalledWith(
+      ['/courses', 3, 'student', 'tools', 'grading-analyzer', 'results'],
+      { queryParams: { uploadId: 42 } },
+    );
+  });
+
+  it('should show an error when upload succeeds but navigation fails', async () => {
+    const { fixture } = await setup({ navigateResult: false });
+    const component = fixture.componentInstance;
+
+    const file = new File(['pdf'], 'exam.pdf', { type: 'application/pdf' });
+    component['selectedFile'].set(file);
+
+    await component['onSubmit']();
+
+    expect(component['errorMessage']()).toContain('Upload succeeded, but opening results failed');
   });
 
   it('should submit through the form and prevent the default browser navigation', async () => {

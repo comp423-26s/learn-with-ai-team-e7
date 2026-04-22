@@ -50,7 +50,8 @@ def ensure_exam_pdf_upload_analysis_column() -> None:
 
     with engine.begin() as connection:
         inspector = inspect(connection)
-        existing_columns = {column["name"] for column in inspector.get_columns(ExamPdfUpload.__tablename__)}
+        table_name = str(ExamPdfUpload.__tablename__)
+        existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
         if "analysis_data" in existing_columns:
             return
         connection.execute(text(f"ALTER TABLE {ExamPdfUpload.__tablename__} ADD COLUMN analysis_data JSON"))

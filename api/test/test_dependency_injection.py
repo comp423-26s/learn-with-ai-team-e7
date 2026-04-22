@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -374,3 +374,17 @@ def test_job_control_service_factory_returns_service() -> None:
     result = job_control_service_factory(session, operator_svc, settings)
 
     assert isinstance(result, JobControlService)
+
+
+@patch("api.di.AiCompletionService")
+def test_ai_completion_service_factory_returns_real_service(mock_service_class):
+    mock_settings = MagicMock()
+    mock_settings.openai_api_key = "sk-test-key"
+    mock_settings.openai_model = "gpt-4"
+    mock_settings.openai_endpoint = None
+    mock_settings.openai_api_version = None
+
+    service = ai_completion_service_factory(mock_settings)
+
+    mock_service_class.assert_called_once()
+    assert isinstance(service, MagicMock)

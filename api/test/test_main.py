@@ -189,7 +189,9 @@ def test_lifespan_context_ensures_exam_pdf_schema_on_startup(
         called = True
 
     monkeypatch.setattr(lifespan_module, "consume_job_updates", fake_consume_job_updates)
-    monkeypatch.setattr(lifespan_module, "ensure_exam_pdf_upload_analysis_column", fake_ensure_exam_pdf_upload_analysis_column)
+    monkeypatch.setattr(
+        lifespan_module, "ensure_exam_pdf_upload_analysis_column", fake_ensure_exam_pdf_upload_analysis_column
+    )
     monkeypatch.setattr(
         lifespan_module,
         "Settings",

@@ -143,8 +143,15 @@ def test_ocr_failure_and_empty_still_persists_fallback_analysis():
         upload = service.upload_pdf(_make_user(), _make_course(), "f.pdf", b"%PDF")
 
     repo.create.assert_not_called()
-    service._exam_analysis_service.analyze_from_text.assert_called_once_with("")
-    service._exam_pdf_upload_repo.update.assert_called_once_with(upload)
+
+    analysis_mock = service._exam_analysis_service.analyze_from_text
+    assert isinstance(analysis_mock, MagicMock)
+    analysis_mock.assert_called_once_with("")
+
+    update_mock = service._exam_pdf_upload_repo.update
+    assert isinstance(update_mock, MagicMock)
+    update_mock.assert_called_once_with(upload)
+
     assert upload.analysis_data is not None
 
 

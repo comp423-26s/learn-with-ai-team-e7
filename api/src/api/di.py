@@ -367,6 +367,16 @@ def roster_upload_service_factory(
 RosterUploadServiceDI: TypeAlias = Annotated[RosterUploadService, Depends(roster_upload_service_factory)]
 
 
+class _FallbackAiCompletionService(AiCompletionService):
+    """Provides a deterministic fallback when OpenAI is not configured."""
+
+    def __init__(self):
+        super().__init__(api_key="none", model="none")
+
+    def complete(self, *, system_prompt: str, user_prompt: str, model: str | None = None) -> str:
+        return "{}"
+
+
 def ai_completion_service_factory(settings: SettingsDI) -> AiCompletionService:
     """Creates the AI completion service for the current request."""
     if settings.openai_api_key is None:
@@ -380,13 +390,6 @@ def ai_completion_service_factory(settings: SettingsDI) -> AiCompletionService:
 
 
 AiCompletionServiceDI: TypeAlias = Annotated[AiCompletionService, Depends(ai_completion_service_factory)]
-
-
-class _FallbackAiCompletionService:
-    """Provides a deterministic fallback when OpenAI is not configured."""
-
-    def complete(self, *, system_prompt: str, user_prompt: str, model: str | None = None) -> str:
-        return "{}"
 
 
 def exam_analysis_service_factory(

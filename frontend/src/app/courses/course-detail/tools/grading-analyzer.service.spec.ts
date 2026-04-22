@@ -40,4 +40,23 @@ describe('GradingAnalyzerService', () => {
 
     expect(result).toEqual({ uploadId: 42, analysis: null });
   });
+
+  it('gets persisted analysis when available', async () => {
+    api.invoke.mockResolvedValueOnce({
+      analysis_data: { strengths: ['Algebra'], topic_summaries: [] },
+    });
+
+    const result = await service.getExamAnalysis(3, 11);
+
+    expect(result).toEqual({ strengths: ['Algebra'], topic_summaries: [] });
+    expect(api.invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when persisted analysis fetch fails', async () => {
+    api.invoke.mockRejectedValueOnce(new Error('not ready'));
+
+    const result = await service.getExamAnalysis(3, 11);
+
+    expect(result).toBeNull();
+  });
 });

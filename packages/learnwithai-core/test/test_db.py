@@ -90,7 +90,12 @@ def test_ensure_exam_pdf_upload_analysis_column_adds_missing_column() -> None:
     ]
 
     with (
-        patch("learnwithai.db.get_settings", return_value=SimpleNamespace(effective_database_url="postgresql+psycopg://postgres:postgres@postgres:5432/learnwithai")),
+        patch(
+            "learnwithai.db.get_settings",
+            return_value=SimpleNamespace(
+                effective_database_url="postgresql+psycopg://postgres:postgres@postgres:5432/learnwithai"
+            ),
+        ),
         patch("learnwithai.db.get_engine", return_value=engine),
         patch("learnwithai.db.inspect", return_value=inspector),
     ):
@@ -111,7 +116,12 @@ def test_ensure_exam_pdf_upload_analysis_column_skips_when_present() -> None:
     ]
 
     with (
-        patch("learnwithai.db.get_settings", return_value=SimpleNamespace(effective_database_url="postgresql+psycopg://postgres:postgres@postgres:5432/learnwithai")),
+        patch(
+            "learnwithai.db.get_settings",
+            return_value=SimpleNamespace(
+                effective_database_url="postgresql+psycopg://postgres:postgres@postgres:5432/learnwithai"
+            ),
+        ),
         patch("learnwithai.db.get_engine", return_value=engine),
         patch("learnwithai.db.inspect", return_value=inspector),
     ):
@@ -323,3 +333,34 @@ def test_get_session_discards_after_commit_callbacks_on_exception() -> None:
     # Assert
     callback.assert_not_called()
     assert mock_session.info == {}
+
+
+def test_ensure_exam_pdf_upload_analysis_column_skips_non_postgresql() -> None:
+    mock_settings = SimpleNamespace(effective_database_url="sqlite:///test.db")
+    mock_engine = MagicMock()
+    if hasattr(mock_engine, "begin"):
+        del mock_engine.begin
+
+    with (
+        patch("learnwithai.db.get_settings", return_value=mock_settings),
+        patch("learnwithai.db.get_engine", return_value=mock_engine),
+    ):
+        db.ensure_exam_pdf_upload_analysis_column()
+
+    mock_engine.connect.assert_not_called()
+
+
+def test_ensure_exam_pdf_upload_analysis_column_skips_without_begin_method() -> None:
+    mock_settings = SimpleNamespace(effective_database_url="postgresql+psycopg://postgres:postgres@localhost/db")
+    mock_engine = MagicMock(spec=["connect", "dispose"])
+
+    # Act
+    with (
+        patch("learnwithai.db.get_settings", return_value=mock_settings),
+        patch("learnwithai.db.get_engine", return_value=mock_engine),
+    ):
+        db.ensure_exam_pdf_upload_analysis_column()
+
+    with patch("learnwithai.db.inspect") as mock_inspect:
+        db.ensure_exam_pdf_upload_analysis_column()
+        mock_inspect.assert_not_called()

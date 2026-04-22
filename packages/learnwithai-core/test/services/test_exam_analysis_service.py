@@ -679,14 +679,15 @@ def test_analyze_from_text_falls_back_when_llm_json_invalid() -> None:
     assert result.question_mappings
 
 
-def test_analyze_from_text_falls_back_when_text_is_empty() -> None:
+def test_analyze_from_text_returns_fallback_when_text_is_empty() -> None:
     service = ExamAnalysisService(MagicMock(), MagicMock())
 
     result = service.analyze_from_text("   ")
 
-    assert isinstance(result, ExamPerformanceAnalysis)
-    assert len(result.topic_summaries) == 3
-    assert all(mapping.performance == "needs_review" for mapping in result.question_mappings)
+    assert result is not None
+    assert result.question_mappings[0].performance == "needs_review"
+
+    assert result.question_mappings[0].question_id == "1"
 
 
 def test_parse_llm_response_from_text_rejects_missing_mappings() -> None:

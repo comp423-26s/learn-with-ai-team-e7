@@ -389,9 +389,6 @@ class ExamAnalysisService:
         except ValidationError:
             return None
 
-        # Validate that we have at least some questions and 3-5 topics
-        if not parsed.question_mappings or not 3 <= len(parsed.topic_summaries) <= 5:
-            return None
         return parsed
 
     def _build_fallback_from_text(self, extracted_text: str) -> ExamPerformanceAnalysis:

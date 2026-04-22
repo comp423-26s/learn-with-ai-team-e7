@@ -13,7 +13,11 @@ import { PageTitleService } from '../../../../page-title.service';
 
 describe('AnalysisResultsComponent', () => {
   async function setup(
-    options: { uploadId?: string | null; analysis?: Record<string, unknown> | null } = {},
+    options: {
+      uploadId?: string | null;
+      analysis?: Record<string, unknown> | null;
+      includeRouteId?: boolean;
+    } = {},
   ) {
     const hasAnalysisOverride = Object.prototype.hasOwnProperty.call(options, 'analysis');
     const mockService = {
@@ -40,7 +44,9 @@ describe('AnalysisResultsComponent', () => {
         paramMap: convertToParamMap({}),
       },
       parent: {
-        snapshot: { paramMap: convertToParamMap({ id: '3' }) },
+        snapshot: {
+          paramMap: convertToParamMap(options.includeRouteId === false ? {} : { id: '3' }),
+        },
         parent: null,
       },
     };
@@ -85,5 +91,74 @@ describe('AnalysisResultsComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
 
     expect(el.textContent).toContain('Analysis not available yet.');
+  });
+
+  it('shows empty-state messages when analysis arrays are empty', async () => {
+    const { fixture } = await setup({
+      analysis: {
+        strengths: [],
+        weaknesses: [],
+        needs_review: [],
+        topic_summaries: [],
+      },
+    });
+    const el: HTMLElement = fixture.nativeElement;
+
+    expect(el.textContent).toContain('No topic summary available.');
+    expect(el.textContent).toContain('No strengths identified.');
+    expect(el.textContent).toContain('No weaknesses identified.');
+    expect(el.textContent).toContain('No topics currently marked for review.');
+  });
+
+  it('falls back for malformed topic summary entries', async () => {
+    const { fixture } = await setup({
+      analysis: {
+        strengths: ['Topic A'],
+        weaknesses: [],
+        needs_review: [],
+        topic_summaries: [{ performance: 123, average_score_pct: 'n/a' }],
+      },
+    });
+    const el: HTMLElement = fixture.nativeElement;
+
+    expect(el.textContent).toContain('Unknown topic');
+    expect(el.textContent).toContain('needs_review');
+    expect(el.textContent).toContain('0.0%');
+  });
+
+  it('shows no topic summary when topic_summaries is not an array', async () => {
+    const { fixture } = await setup({
+      analysis: {
+        strengths: ['Topic A'],
+        weaknesses: ['Topic B'],
+        needs_review: ['Topic C'],
+        topic_summaries: 'not-an-array',
+      },
+    });
+    const el: HTMLElement = fixture.nativeElement;
+
+    expect(el.textContent).toContain('No topic summary available.');
+  });
+
+  it('falls back to NaN course id when route chain has no course id', async () => {
+    const { fixture, mockService } = await setup({ includeRouteId: false });
+    const component = fixture.componentInstance;
+
+    expect(component['courseId']).toBeNaN();
+    expect(mockService.getExamAnalysis).toHaveBeenCalledWith(Number.NaN, 22);
+  });
+
+  it('shows no strengths when strengths is not an array', async () => {
+    const { fixture } = await setup({
+      analysis: {
+        strengths: 'not-an-array',
+        weaknesses: [],
+        needs_review: [],
+        topic_summaries: [],
+      },
+    });
+    const el: HTMLElement = fixture.nativeElement;
+
+    expect(el.textContent).toContain('No strengths identified.');
   });
 });

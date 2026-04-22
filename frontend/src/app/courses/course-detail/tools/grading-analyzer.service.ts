@@ -10,14 +10,14 @@ export class GradingAnalyzerService {
   /** Uploads a graded exam PDF, fetches analysis results, and returns both.
    *
    * Args:
-   *   courseId: The course ID for the upload
-   *   file: The exam PDF file to upload
+   * courseId: The course ID for the upload
+   * file: The exam PDF file to upload
    *
    * Returns:
-   *   An object with uploadId and structured analysis results, or null if analysis fails
+   * An object with uploadId and structured analysis results, or null if analysis fails
    *
    * Throws:
-   *   - Rethrows any HTTP errors from the upload or analysis fetch
+   * - Rethrows any HTTP errors from the upload or analysis fetch
    */
   async uploadExam(
     courseId: number,
@@ -34,7 +34,6 @@ export class GradingAnalyzerService {
     // Try to fetch analysis immediately; if not yet ready, return null
     try {
       // Dynamically import the get function after API sync
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-variable-declaration
       const { getExamAnalysis } =
         await import('../../../api/generated/fn/exam-pd-fs/get-exam-analysis');
 
@@ -47,7 +46,7 @@ export class GradingAnalyzerService {
         uploadId,
         analysis: analysisResponse.analysis_data as Record<string, unknown>,
       };
-    } catch (_error) {
+    } catch {
       // Analysis not ready or endpoint doesn't exist yet; return upload without analysis
       return {
         uploadId,
@@ -69,7 +68,7 @@ export class GradingAnalyzerService {
         upload_id: uploadId,
       });
       return analysisResponse.analysis_data as Record<string, unknown>;
-    } catch (_error) {
+    } catch {
       return null;
     }
   }

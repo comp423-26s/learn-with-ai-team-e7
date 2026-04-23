@@ -24,6 +24,7 @@ from learnwithai.repositories.exam_pdf_text_repository import ExamPdfTextReposit
 from learnwithai.repositories.exam_pdf_upload_repository import ExamPdfUploadRepository
 from learnwithai.repositories.membership_repository import MembershipRepository
 from learnwithai.repositories.operator_repository import OperatorRepository
+from learnwithai.repositories.practice_material_repository import PracticeMaterialRepository
 from learnwithai.repositories.submission_repository import SubmissionRepository
 from learnwithai.repositories.user_repository import UserRepository
 from learnwithai.services.activity_service import ActivityService
@@ -77,6 +78,7 @@ __all__ = [
     "OperatorRepositoryDI",
     "OperatorServiceDI",
     "PaginationParamsDI",
+    "PracticeMaterialRepositoryDI",
     "SessionDI",
     "SettingsDI",
     "SubmissionRepositoryDI",
@@ -120,14 +122,14 @@ __all__ = [
 
 
 def csxl_auth_service_factory(settings: SettingsDI, user_repository: UserRepositoryDI) -> CSXLAuthService:
-    """Creates the CSXL authentication service for the current request.
+    """Create CSXL authentication service for current request.
 
     Args:
         settings: Application settings.
         user_repository: Repository used to load and persist users.
 
     Returns:
-        A configured CSXL authentication service.
+        configured CSXL authentication service.
     """
     return CSXLAuthService(settings, user_repository)
 
@@ -139,7 +141,7 @@ SessionDI: TypeAlias = Annotated[Session, Depends(get_session)]
 
 
 def settings_factory() -> Settings:
-    """Builds a settings object for FastAPI dependency injection."""
+    """Build settings object for FastAPI dependency injection."""
     return get_settings()
 
 
@@ -147,7 +149,7 @@ SettingsDI: TypeAlias = Annotated[Settings, Depends(settings_factory)]
 
 
 def user_repository_factory(session: SessionDI) -> UserRepository:
-    """Constructs a user repository bound to the current request session."""
+    """Constructs user repository for current request session."""
     return UserRepository(session)
 
 
@@ -155,7 +157,7 @@ UserRepositoryDI: TypeAlias = Annotated[UserRepository, Depends(user_repository_
 
 
 def course_repository_factory(session: SessionDI) -> CourseRepository:
-    """Constructs a course repository bound to the current request session."""
+    """Constructs course repository for current request session."""
     return CourseRepository(session)
 
 
@@ -163,7 +165,7 @@ CourseRepositoryDI: TypeAlias = Annotated[CourseRepository, Depends(course_repos
 
 
 def membership_repository_factory(session: SessionDI) -> MembershipRepository:
-    """Constructs a membership repository bound to the current request session."""
+    """Constructs membership repository for current request session."""
     return MembershipRepository(session)
 
 
@@ -197,6 +199,17 @@ def exam_pdf_text_repository_factory(session: SessionDI) -> ExamPdfTextRepositor
 ExamPdfTextRepositoryDI: TypeAlias = Annotated[
     ExamPdfTextRepository,
     Depends(exam_pdf_text_repository_factory),
+]
+
+
+def practice_material_repository_factory(session: SessionDI) -> PracticeMaterialRepository:
+    """Constructs a practice material repository for the current session."""
+    return PracticeMaterialRepository(session)
+
+
+PracticeMaterialRepositoryDI: TypeAlias = Annotated[
+    PracticeMaterialRepository,
+    Depends(practice_material_repository_factory),
 ]
 
 
@@ -471,7 +484,7 @@ def joke_generation_service_factory(
 
 JokeGenerationServiceDI: TypeAlias = Annotated[JokeGenerationService, Depends(joke_generation_service_factory)]
 
-
+# iyow means "In Your Own Words," ---allows students to submit freeform text responses to activity prompts
 # ---- Activity / IYOW DI ----
 
 

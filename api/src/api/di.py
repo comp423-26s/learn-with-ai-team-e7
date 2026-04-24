@@ -203,7 +203,7 @@ ExamPdfTextRepositoryDI: TypeAlias = Annotated[
 
 
 def practice_material_repository_factory(session: SessionDI) -> PracticeMaterialRepository:
-    """Constructs a practice material repository for the current session."""
+    """Constructs practice material repository for current session."""
     return PracticeMaterialRepository(session)
 
 

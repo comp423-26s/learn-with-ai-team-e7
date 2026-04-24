@@ -18,6 +18,7 @@ from api.di import (
     exam_pdf_service_factory,
     exam_pdf_text_repository_factory,
     exam_pdf_upload_repository_factory,
+    practice_material_repository_factory,
     get_activity_by_path_id,
     get_course_by_path_id,
     get_user_by_pid,
@@ -129,6 +130,16 @@ def test_exam_pdf_text_repository_factory_returns_repository() -> None:
     result = exam_pdf_text_repository_factory(session)
 
     assert isinstance(result, ExamPdfTextRepository)
+
+
+def test_practice_material_repository_factory_returns_repository() -> None:
+    from learnwithai.repositories.practice_material_repository import PracticeMaterialRepository
+
+    session = MagicMock()
+
+    result = practice_material_repository_factory(session)
+
+    assert isinstance(result, PracticeMaterialRepository)
 
 
 def test_roster_upload_service_factory_returns_service() -> None:

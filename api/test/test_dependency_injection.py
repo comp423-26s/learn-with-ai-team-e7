@@ -18,7 +18,6 @@ from api.di import (
     exam_pdf_service_factory,
     exam_pdf_text_repository_factory,
     exam_pdf_upload_repository_factory,
-    practice_material_repository_factory,
     get_activity_by_path_id,
     get_course_by_path_id,
     get_user_by_pid,
@@ -33,6 +32,8 @@ from api.di import (
     object_storage_factory,
     operator_repository_factory,
     operator_service_factory,
+    practice_material_repository_factory,
+    practice_material_service_factory,
     roster_upload_service_factory,
     submission_repository_factory,
 )
@@ -178,6 +179,14 @@ def test_exam_analysis_service_factory_returns_service() -> None:
     result = exam_analysis_service_factory(MagicMock(), MagicMock())
 
     assert isinstance(result, ExamAnalysisService)
+
+
+def test_practice_material_service_factory_returns_service() -> None:
+    from learnwithai.services.practice_material_service import PracticeMaterialService
+
+    result = practice_material_service_factory(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
+    assert isinstance(result, PracticeMaterialService)
 
 
 def test_object_storage_factory_raises_without_bucket() -> None:

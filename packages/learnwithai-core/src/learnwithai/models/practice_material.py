@@ -6,9 +6,17 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..interfaces import TrackedJob
+
 DifficultyLabel = Literal["easy", "medium", "hard"]
 
 PRACTICE_MATERIAL_KIND = "practice_material"
+
+
+class PracticeMaterialJob(TrackedJob):
+    """Dramatiq job payload for practice material generation."""
+
+    type: Literal["practice_material"] = "practice_material"
 
 
 class PracticeQuestion(BaseModel):

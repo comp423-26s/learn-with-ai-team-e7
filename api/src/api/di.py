@@ -39,6 +39,7 @@ from learnwithai.services.exam_pdf_service import ExamPdfService
 from learnwithai.services.job_control_service import JobControlService
 from learnwithai.services.metrics_service import MetricsService
 from learnwithai.services.operator_service import OperatorService
+from learnwithai.services.practice_material_service import PracticeMaterialService
 from learnwithai.services.roster_upload_service import RosterUploadService
 from learnwithai.services.s3_object_storage import NoopObjectStorage, S3ObjectStorage
 from learnwithai.tables.activity import Activity
@@ -79,6 +80,7 @@ __all__ = [
     "OperatorServiceDI",
     "PaginationParamsDI",
     "PracticeMaterialRepositoryDI",
+    "PracticeMaterialServiceDI",
     "SessionDI",
     "SettingsDI",
     "SubmissionRepositoryDI",
@@ -115,6 +117,7 @@ __all__ = [
     "operator_repository_factory",
     "operator_service_factory",
     "roster_upload_service_factory",
+    "practice_material_service_factory",
     "settings_factory",
     "submission_repository_factory",
     "user_repository_factory",
@@ -430,6 +433,27 @@ def exam_pdf_service_factory(
 
 
 ExamPdfServiceDI: TypeAlias = Annotated[ExamPdfService, Depends(exam_pdf_service_factory)]
+
+
+def practice_material_service_factory(
+    ai_completion_service: AiCompletionServiceDI,
+    exam_pdf_upload_repo: ExamPdfUploadRepositoryDI,
+    exam_pdf_text_repo: ExamPdfTextRepositoryDI,
+    practice_material_repo: PracticeMaterialRepositoryDI,
+) -> PracticeMaterialService:
+    """Creates the practice material service for the current request."""
+    return PracticeMaterialService(
+        ai_completion_service,
+        exam_pdf_upload_repo,
+        exam_pdf_text_repo,
+        practice_material_repo,
+    )
+
+
+PracticeMaterialServiceDI: TypeAlias = Annotated[
+    PracticeMaterialService,
+    Depends(practice_material_service_factory),
+]
 
 
 def operator_repository_factory(session: SessionDI) -> OperatorRepository:

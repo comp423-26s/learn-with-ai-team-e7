@@ -12,6 +12,7 @@ from learnwithai.jobs import (
     IyowFeedbackJob,
     JobPayload,
     JokeGenerationJob,
+    PracticeMaterialJob,
     RosterUploadJob,
     get_job_handler_map,
     job_adapter,
@@ -37,6 +38,7 @@ def test_jobs_package_exports_expected_symbols() -> None:
         "ForbiddenJobQueue",
         "IyowFeedbackJob",
         "JokeGenerationJob",
+        "PracticeMaterialJob",
         "NoOpJobNotifier",
         "RosterUploadJob",
         "RosterUploadOutput",
@@ -166,6 +168,21 @@ def test_job_handler_map_points_roster_upload_to_handler() -> None:
 
     # Assert
     assert isinstance(handler, RosterUploadJobHandler)
+
+
+def test_job_adapter_builds_practice_material_job_from_payload() -> None:
+    payload = {"type": "practice_material", "job_id": 77}
+    job = job_adapter(payload)
+    assert isinstance(job, PracticeMaterialJob)
+    assert job.job_id == 77
+
+
+def test_job_handler_map_points_practice_material_to_handler() -> None:
+    from learnwithai.practice_material.job import PracticeMaterialJobHandler
+
+    handler_class = get_job_handler_map()[PracticeMaterialJob]
+    handler = handler_class()
+    assert isinstance(handler, PracticeMaterialJobHandler)
 
 
 # ---- IyowFeedbackJob ----

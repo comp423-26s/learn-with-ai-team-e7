@@ -9,6 +9,7 @@ from pydantic import Discriminator, TypeAdapter
 
 from ..activities.iyow.models import IyowFeedbackJob
 from ..interfaces import Job, JobHandler
+from ..models.practice_material import PracticeMaterialJob
 from ..tools.jokes.models import JokeGenerationJob
 from .base_job_handler import BaseJobHandler
 from .echo import EchoJob, EchoJobHandler
@@ -17,7 +18,7 @@ from .noop_job_notifier import NoOpJobNotifier
 from .roster_upload import RosterUploadJob, RosterUploadJobHandler, RosterUploadOutput
 
 JobPayload: TypeAlias = Annotated[
-    Union[EchoJob, IyowFeedbackJob, JokeGenerationJob, RosterUploadJob], Discriminator("type")
+    Union[EchoJob, IyowFeedbackJob, JokeGenerationJob, PracticeMaterialJob, RosterUploadJob], Discriminator("type")
 ]
 
 job_payload_adapter: TypeAdapter[JobPayload] = TypeAdapter(JobPayload)
@@ -43,12 +44,14 @@ def get_job_handler_map() -> dict[type[Job], type[JobHandler[Any]]]:
     import would create a cycle, so the handler is resolved lazily.
     """
     from ..activities.iyow.job import IyowFeedbackJobHandler
+    from ..practice_material.job import PracticeMaterialJobHandler
     from ..tools.jokes.job import JokeGenerationJobHandler
 
     return {
         EchoJob: EchoJobHandler,
         IyowFeedbackJob: IyowFeedbackJobHandler,
         JokeGenerationJob: JokeGenerationJobHandler,
+        PracticeMaterialJob: PracticeMaterialJobHandler,
         RosterUploadJob: RosterUploadJobHandler,
     }
 
@@ -60,6 +63,7 @@ __all__ = [
     "ForbiddenJobQueue",
     "IyowFeedbackJob",
     "JokeGenerationJob",
+    "PracticeMaterialJob",
     "NoOpJobNotifier",
     "RosterUploadJob",
     "RosterUploadOutput",

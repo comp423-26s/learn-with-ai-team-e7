@@ -10,6 +10,14 @@
   </mat-card>
 } @else {
   <div class="results-grid">
+    @if (headline()) {
+      <mat-card appearance="outlined" class="headline-card">
+        <mat-card-content>
+          <p class="headline">{{ headline() }}</p>
+        </mat-card-content>
+      </mat-card>
+    }
+
     <mat-card appearance="outlined" class="summary-card">
       <mat-card-header>
         <mat-card-title>Topic Summary</mat-card-title>
@@ -49,8 +57,8 @@
           <p>No strengths identified.</p>
         } @else {
           <ul>
-            @for (item of strengths(); track item) {
-              <li>{{ item }}</li>
+            @for (item of strengths(); track item.topic) {
+              <li>{{ item.label }}</li>
             }
           </ul>
         }
@@ -66,8 +74,8 @@
           <p>No weaknesses identified.</p>
         } @else {
           <ul>
-            @for (item of weaknesses(); track item) {
-              <li>{{ item }}</li>
+            @for (item of weaknesses(); track item.topic) {
+              <li>{{ item.label }}</li>
             }
           </ul>
         }
@@ -83,8 +91,8 @@
           <p>No topics currently marked for review.</p>
         } @else {
           <ul>
-            @for (item of needsReview(); track item) {
-              <li>{{ item }}</li>
+            @for (item of needsReview(); track item.topic) {
+              <li>{{ item.label }}</li>
             }
           </ul>
         }

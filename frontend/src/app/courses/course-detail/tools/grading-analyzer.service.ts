@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Api } from '../../../api/generated/api';
 import { uploadExamPdf } from '../../../api/generated/fn/exam-pd-fs/upload-exam-pdf';
+import type { ExamAnalysisSummary } from '../../../api/generated/models/exam-analysis-summary';
 
 /** handle HTTP communication with the grading analyzer API */
 @Injectable({ providedIn: 'root' })
@@ -22,7 +23,7 @@ export class GradingAnalyzerService {
   async uploadExam(
     courseId: number,
     file: File,
-  ): Promise<{ uploadId: number; analysis: Record<string, unknown> | null }> {
+  ): Promise<{ uploadId: number; analysis: ExamAnalysisSummary | null }> {
     // Upload the PDF file
     const uploadResponse = await this.api.invoke(uploadExamPdf, {
       course_id: courseId,
@@ -44,7 +45,7 @@ export class GradingAnalyzerService {
 
       return {
         uploadId,
-        analysis: analysisResponse.analysis_data as Record<string, unknown>,
+        analysis: analysisResponse.analysis_data,
       };
     } catch {
       // if analysis not ready or endpoint doesn't exist yet; return upload without analysis
@@ -56,10 +57,7 @@ export class GradingAnalyzerService {
   }
 
   /** retrieve analysis for an uploaded exam PDF. */
-  async getExamAnalysis(
-    courseId: number,
-    uploadId: number,
-  ): Promise<Record<string, unknown> | null> {
+  async getExamAnalysis(courseId: number, uploadId: number): Promise<ExamAnalysisSummary | null> {
     try {
       const { getExamAnalysis } =
         await import('../../../api/generated/fn/exam-pd-fs/get-exam-analysis');
@@ -67,7 +65,7 @@ export class GradingAnalyzerService {
         course_id: courseId,
         upload_id: uploadId,
       });
-      return analysisResponse.analysis_data as Record<string, unknown>;
+      return analysisResponse.analysis_data;
     } catch {
       return null;
     }

@@ -10,14 +10,57 @@ import pytest
 from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
 from learnwithai.errors import AuthorizationError
+from learnwithai.models.exam_analysis import ExamAnalysisSummary, TopicSummaryLine
 from learnwithai.tables.exam_pdf_upload import ExamPdfUpload
 from starlette.datastructures import Headers
 
 from api.di import exam_pdf_service_factory, get_authenticated_user, get_course_by_path_id
 from api.main import app
-from api.models import ExamPdfAnalysisResponse, ExamPdfUploadResponse
+from api.models import ExamPdfAnalysisResponse, ExamPdfHistoryItem, ExamPdfUploadResponse
 from api.routes import exam_pdfs
-from api.routes.exam_pdfs import get_exam_analysis, upload_exam_pdf
+from api.routes.exam_pdfs import get_exam_analysis, list_exam_pdf_uploads, upload_exam_pdf
+
+_STUB_PERFORMANCE_ANALYSIS = {
+    "topic_summaries": [
+        {"topic": "Algebra", "question_ids": ["q1"], "average_score_pct": 0.9, "performance": "strong"},
+        {"topic": "Geometry", "question_ids": ["q2"], "average_score_pct": 0.4, "performance": "weak"},
+        {"topic": "Trigonometry", "question_ids": ["q3"], "average_score_pct": 0.7, "performance": "needs_review"},
+    ],
+    "question_mappings": [
+        {"question_id": "q1", "topic": "Algebra", "performance": "strong", "score_earned": 9.0, "score_possible": 10.0},
+        {"question_id": "q2", "topic": "Geometry", "performance": "weak", "score_earned": 4.0, "score_possible": 10.0},
+        {
+            "question_id": "q3",
+            "topic": "Trigonometry",
+            "performance": "needs_review",
+            "score_earned": 7.0,
+            "score_possible": 10.0,
+        },
+    ],
+    "strengths": ["Algebra"],
+    "weaknesses": ["Geometry"],
+    "needs_review": ["Trigonometry"],
+}
+
+_STUB_SUMMARY = ExamAnalysisSummary(
+    headline="You performed well in Algebra. Focus your revision on Geometry.",
+    overall_score_pct=0.667,
+    strengths=[
+        TopicSummaryLine(label="Algebra (strong)", topic="Algebra", performance="strong", average_score_pct=0.9)
+    ],
+    weaknesses=[TopicSummaryLine(label="Geometry (weak)", topic="Geometry", performance="weak", average_score_pct=0.4)],
+    needs_review=[
+        TopicSummaryLine(
+            label="Trigonometry (needs review)", topic="Trigonometry", performance="needs_review", average_score_pct=0.7
+        )
+    ],
+)
+
+
+def _stub_exam_analysis_svc() -> MagicMock:
+    mock = MagicMock()
+    mock.summarize_analysis.return_value = _STUB_SUMMARY
+    return mock
 
 
 def _stub_user(pid: int = 123456789) -> MagicMock:
@@ -54,7 +97,7 @@ def _stub_upload_record(record_id: int = 22, course_id: int = 1, uploader_pid: i
     mock.content_type = "application/pdf"
     mock.size_bytes = 13
     mock.created_at = datetime(2026, 4, 15, tzinfo=timezone.utc)
-    mock.analysis_data = {"strengths": ["Algebra"], "weaknesses": ["Geometry"]}
+    mock.analysis_data = _STUB_PERFORMANCE_ANALYSIS
     return mock
 
 
@@ -180,14 +223,17 @@ async def test_get_exam_analysis_returns_persisted_analysis() -> None:
     course = _stub_course()
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = _stub_exam_analysis_svc()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
     upload_repo.get_by_id.return_value = _stub_upload_record()
 
-    result = await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+    result = await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
 
     assert isinstance(result, ExamPdfAnalysisResponse)
     assert result.upload_id == 22
-    assert result.analysis_data["strengths"] == ["Algebra"]
+    assert isinstance(result.analysis_data, ExamAnalysisSummary)
+    assert result.analysis_data.headline == "You performed well in Algebra. Focus your revision on Geometry."
+    exam_analysis_svc.summarize_analysis.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -196,13 +242,32 @@ async def test_get_exam_analysis_returns_404_when_analysis_missing() -> None:
     course = _stub_course()
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
     upload = _stub_upload_record()
     upload.analysis_data = None
     upload_repo.get_by_id.return_value = upload
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_get_exam_analysis_returns_404_when_stored_analysis_is_malformed() -> None:
+    subject = _stub_user()
+    course = _stub_course()
+    upload_repo = MagicMock()
+    membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+    upload = _stub_upload_record()
+    upload.analysis_data = {"completely_invalid": "data"}
+    upload_repo.get_by_id.return_value = upload
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
 
     assert exc_info.value.status_code == 404
 
@@ -213,10 +278,11 @@ async def test_get_exam_analysis_returns_403_when_not_enrolled() -> None:
     course = _stub_course()
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
     membership_repo.get_by_user_and_course.return_value = None
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
 
     assert exc_info.value.status_code == 403
 
@@ -227,11 +293,12 @@ async def test_get_exam_analysis_returns_404_when_upload_missing() -> None:
     course = _stub_course()
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
     upload_repo.get_by_id.return_value = None
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_exam_analysis(subject, course, 999, upload_repo, membership_repo)
+        await get_exam_analysis(subject, course, 999, upload_repo, membership_repo, exam_analysis_svc)
 
     assert exc_info.value.status_code == 404
 
@@ -242,10 +309,115 @@ async def test_get_exam_analysis_returns_404_for_mismatched_course() -> None:
     course = _stub_course(course_id=1)
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
     upload_repo.get_by_id.return_value = _stub_upload_record(course_id=2)
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
 
     assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_list_exam_pdf_uploads_returns_all_uploads_for_student() -> None:
+    subject = _stub_user(pid=123456789)
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    practice_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+
+    # Create mock uploads with different timestamps
+    upload1 = _stub_upload_record(record_id=1, course_id=1, uploader_pid=123456789)
+    upload1.created_at = datetime(2026, 4, 10, tzinfo=timezone.utc)
+    upload1.analysis_data = {"strengths": ["Algebra"]}
+
+    upload2 = _stub_upload_record(record_id=2, course_id=1, uploader_pid=123456789)
+    upload2.created_at = datetime(2026, 4, 15, tzinfo=timezone.utc)
+    upload2.analysis_data = None
+
+    upload_repo.list_by_student_and_course.return_value = [upload2, upload1]  # Newest first
+
+    # Mock practice materials
+    pm1 = MagicMock()
+    pm1.upload_id = 2
+    practice_repo.list_by_student_and_course.return_value = [pm1]
+
+    result = await list_exam_pdf_uploads(subject, course, upload_repo, practice_repo, membership_repo)
+
+    assert len(result) == 2
+    assert isinstance(result[0], ExamPdfHistoryItem)
+    assert result[0].id == 2
+    assert result[0].original_filename == "exam.pdf"
+    assert result[0].has_analysis is False
+    assert result[0].has_practice is True
+    assert result[1].id == 1
+    assert result[1].has_analysis is True
+    assert result[1].has_practice is False
+
+
+@pytest.mark.anyio
+async def test_list_exam_pdf_uploads_returns_empty_list_when_no_uploads() -> None:
+    subject = _stub_user(pid=123456789)
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    practice_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+
+    upload_repo.list_by_student_and_course.return_value = []
+    practice_repo.list_by_student_and_course.return_value = []
+
+    result = await list_exam_pdf_uploads(subject, course, upload_repo, practice_repo, membership_repo)
+
+    assert result == []
+
+
+@pytest.mark.anyio
+async def test_list_exam_pdf_uploads_returns_403_when_not_enrolled() -> None:
+    subject = _stub_user(pid=123456789)
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    practice_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await list_exam_pdf_uploads(subject, course, upload_repo, practice_repo, membership_repo)
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.integration
+def test_list_exam_pdf_uploads_accepts_get_request(client: TestClient) -> None:
+    subject = _stub_user(pid=123456789)
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    practice_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+
+    upload1 = _stub_upload_record(record_id=1, course_id=1, uploader_pid=123456789)
+    upload_repo.list_by_student_and_course.return_value = [upload1]
+    practice_repo.list_by_student_and_course.return_value = []
+
+    from api.di import (
+        exam_pdf_upload_repository_factory,
+        membership_repository_factory,
+        practice_material_repository_factory,
+    )
+
+    app.dependency_overrides[get_authenticated_user] = lambda: subject
+    app.dependency_overrides[get_course_by_path_id] = lambda: course
+    app.dependency_overrides[exam_pdf_upload_repository_factory] = lambda: upload_repo
+    app.dependency_overrides[practice_material_repository_factory] = lambda: practice_repo
+    app.dependency_overrides[membership_repository_factory] = lambda: membership_repo
+
+    response = client.get("/api/courses/1/exam-pdfs")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == 1
+    assert data[0]["has_practice"] is False

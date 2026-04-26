@@ -1407,6 +1407,65 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "Exam PDFs"
+        ],
+        "summary": "List exam PDF uploads for the current student",
+        "description": "Retrieves all exam PDF uploads for the requesting student in a course.\n\nArgs:\n    subject: Authenticated user requesting the list.\n    course: Course loaded via path dependency.\n    exam_pdf_upload_repo: Repository for loading upload records.\n    practice_material_repo: Repository for checking practice material existence.\n    membership_repo: Repository for checking course membership.\n\nReturns:\n    List of exam uploads for the student, newest first.\n\nRaises:\n    HTTPException: If user lacks permissions or course is not found.",
+        "operationId": "list_exam_pdf_uploads",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Course Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All exam uploads by the requesting student in this course, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExamPdfHistoryItem"
+                  },
+                  "title": "Response List Exam Pdf Uploads"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated."
+          },
+          "403": {
+            "description": "Insufficient permissions."
+          },
+          "404": {
+            "description": "Course not found."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/courses/{course_id}/exam-pdfs/{upload_id}/analysis": {
@@ -1415,7 +1474,7 @@
           "Exam PDFs"
         ],
         "summary": "Retrieve exam analysis",
-        "description": "Retrieves the analysis results for an uploaded exam PDF.\n\nArgs:\n    subject: Authenticated user requesting the analysis.\n    course: Course loaded via path dependency.\n    upload_id: Upload identifier from the URL path.\n    exam_pdf_upload_repo: Repository for loading upload records.\n\nReturns:\n    Structured analysis with topics, strengths, and weaknesses.\n\nRaises:\n    HTTPException: If the upload is not found, analysis is not available, or user lacks permission.",
+        "description": "Retrieves the analysis results for an uploaded exam PDF.\n\nArgs:\n    subject: Authenticated user requesting the analysis.\n    course: Course loaded via path dependency.\n    upload_id: Upload identifier from the URL path.\n    exam_pdf_upload_repo: Repository for loading upload records.\n    membership_repo: Repository for checking course membership.\n    exam_analysis_svc: Service for summarizing analysis data.\n\nReturns:\n    Structured analysis with topics, strengths, and weaknesses.\n\nRaises:\n    HTTPException: If the upload is not found, analysis is not available, or user lacks permission.",
         "operationId": "get_exam_analysis",
         "security": [
           {
@@ -1462,6 +1521,146 @@
           },
           "404": {
             "description": "Upload not found or analysis not available."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/courses/{course_id}/exam-pdfs/{upload_id}/practice": {
+      "post": {
+        "tags": [
+          "Exam PDFs"
+        ],
+        "summary": "Generate exam practice materials",
+        "description": "Queues practice material generation unless one already exists.\n\nThe endpoint is idempotent for a given upload: if generated materials\nalready exist, they are returned immediately and no new job is enqueued.",
+        "operationId": "generate_practice_materials",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Course Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Either queued generation info or existing generated practice materials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PracticeMaterialGenerateResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PracticeMaterialResponse"
+                    }
+                  ],
+                  "title": "Response Generate Practice Materials"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated."
+          },
+          "403": {
+            "description": "Insufficient permissions."
+          },
+          "404": {
+            "description": "Upload not found."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Exam PDFs"
+        ],
+        "summary": "Get generated exam practice materials",
+        "description": "Returns generated practice materials for an authorized upload owner.",
+        "operationId": "get_practice_materials",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Course Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Generated practice questions and flashcards for an exam upload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeMaterialResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated."
+          },
+          "403": {
+            "description": "Insufficient permissions."
+          },
+          "404": {
+            "description": "Upload or practice materials not found."
           },
           "422": {
             "description": "Validation Error",
@@ -2906,6 +3105,48 @@
         "title": "CreateJokeRequest",
         "description": "Request body for submitting a joke generation request."
       },
+      "ExamAnalysisSummary": {
+        "properties": {
+          "strengths": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummaryLine"
+            },
+            "type": "array",
+            "title": "Strengths"
+          },
+          "weaknesses": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummaryLine"
+            },
+            "type": "array",
+            "title": "Weaknesses"
+          },
+          "needs_review": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummaryLine"
+            },
+            "type": "array",
+            "title": "Needs Review"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "overall_score_pct": {
+            "type": "number",
+            "title": "Overall Score Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strengths",
+          "weaknesses",
+          "needs_review",
+          "headline",
+          "overall_score_pct"
+        ],
+        "title": "ExamAnalysisSummary"
+      },
       "ExamPdfAnalysisResponse": {
         "properties": {
           "upload_id": {
@@ -2913,9 +3154,7 @@
             "title": "Upload Id"
           },
           "analysis_data": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Analysis Data"
+            "$ref": "#/components/schemas/ExamAnalysisSummary"
           },
           "created_at": {
             "type": "string",
@@ -2931,6 +3170,41 @@
         ],
         "title": "ExamPdfAnalysisResponse",
         "description": "Response containing analysis results for an uploaded exam PDF."
+      },
+      "ExamPdfHistoryItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "original_filename": {
+            "type": "string",
+            "title": "Original Filename"
+          },
+          "uploaded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Uploaded At"
+          },
+          "has_analysis": {
+            "type": "boolean",
+            "title": "Has Analysis"
+          },
+          "has_practice": {
+            "type": "boolean",
+            "title": "Has Practice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "original_filename",
+          "uploaded_at",
+          "has_analysis",
+          "has_practice"
+        ],
+        "title": "ExamPdfHistoryItem",
+        "description": "Response item for exam PDF history list."
       },
       "ExamPdfUploadResponse": {
         "properties": {
@@ -2981,6 +3255,33 @@
         ],
         "title": "ExamPdfUploadResponse",
         "description": "Response returned when a PDF upload is stored successfully."
+      },
+      "Flashcard": {
+        "properties": {
+          "front": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Front"
+          },
+          "back": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Back"
+          },
+          "topic": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Topic"
+          }
+        },
+        "type": "object",
+        "required": [
+          "front",
+          "back",
+          "topic"
+        ],
+        "title": "Flashcard",
+        "description": "A flashcard with a prompt on the front and explanation on the back."
       },
       "GrantOperatorRequest": {
         "properties": {
@@ -3466,6 +3767,124 @@
         "title": "PaginatedRosterResponse",
         "description": "Paginated wrapper around roster member entries."
       },
+      "PracticeMaterialGenerateResponse": {
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "title": "Job Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AsyncJobStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "PracticeMaterialGenerateResponse",
+        "description": "Response returned when practice material generation is queued."
+      },
+      "PracticeMaterialResponse": {
+        "properties": {
+          "upload_id": {
+            "type": "integer",
+            "title": "Upload Id"
+          },
+          "weak_topics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Weak Topics"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeQuestion"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Questions"
+          },
+          "flashcards": {
+            "items": {
+              "$ref": "#/components/schemas/Flashcard"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Flashcards"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "student_pid": {
+            "type": "integer",
+            "title": "Student Pid"
+          },
+          "course_id": {
+            "type": "integer",
+            "title": "Course Id"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "upload_id",
+          "weak_topics",
+          "questions",
+          "flashcards",
+          "id",
+          "student_pid",
+          "course_id",
+          "generated_at"
+        ],
+        "title": "PracticeMaterialResponse",
+        "description": "Response containing generated practice materials for an exam upload."
+      },
+      "PracticeQuestion": {
+        "properties": {
+          "question_text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Question Text"
+          },
+          "answer": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Answer"
+          },
+          "topic": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Topic"
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "medium",
+              "hard"
+            ],
+            "title": "Difficulty",
+            "default": "medium"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question_text",
+          "answer",
+          "topic"
+        ],
+        "title": "PracticeQuestion",
+        "description": "A single practice question with its correct answer and topic metadata."
+      },
       "QueueInfoResponse": {
         "properties": {
           "name": {
@@ -3940,6 +4359,39 @@
         ],
         "title": "Term",
         "description": "Academic term within a year."
+      },
+      "TopicSummaryLine": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "performance": {
+            "type": "string",
+            "enum": [
+              "strong",
+              "needs_review",
+              "weak"
+            ],
+            "title": "Performance"
+          },
+          "average_score_pct": {
+            "type": "number",
+            "title": "Average Score Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "topic",
+          "performance",
+          "average_score_pct"
+        ],
+        "title": "TopicSummaryLine"
       },
       "UpdateCourseRequest": {
         "properties": {

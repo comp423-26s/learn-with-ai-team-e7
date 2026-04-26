@@ -20,6 +20,7 @@ type RouterStub = { navigate: ReturnType<typeof vi.fn> };
 
 type ExamHistoryTestInstance = {
   loading: () => boolean;
+  navigateToGradingAnalyzer: () => void;
 };
 
 const makeRoute = (id: string) => ({
@@ -173,9 +174,7 @@ describe('ExamHistory', () => {
       fixture.detectChanges();
       await waitForHistoryLoad(fixture);
 
-      (
-        fixture.componentInstance as unknown as { navigateToGradingAnalyzer: () => void }
-      ).navigateToGradingAnalyzer();
+      (fixture.componentInstance as unknown as ExamHistoryTestInstance).navigateToGradingAnalyzer();
 
       expect(mockRouter.navigate).toHaveBeenCalledWith([
         'courses',

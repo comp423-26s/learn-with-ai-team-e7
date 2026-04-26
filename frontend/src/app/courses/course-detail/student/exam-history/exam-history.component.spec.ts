@@ -16,9 +16,17 @@ type ApiStub = {
   invoke: ReturnType<typeof vi.fn>;
 };
 
+type RouterStub = { navigate: ReturnType<typeof vi.fn> };
+
 type ExamHistoryTestInstance = {
   loading: () => boolean;
 };
+
+const makeRoute = (id: string) => ({
+  parent: {
+    parent: { snapshot: { paramMap: new Map([['id', id]]) } },
+  },
+});
 
 const waitForHistoryLoad = async (fixture: ComponentFixture<ExamHistory>): Promise<void> => {
   const instance = fixture.componentInstance as unknown as ExamHistoryTestInstance;
@@ -33,105 +41,166 @@ const waitForHistoryLoad = async (fixture: ComponentFixture<ExamHistory>): Promi
   throw new Error('Timed out waiting for exam history to load.');
 };
 
+const configureModule = async (routeId: string) => {
+  const pageTitle = { setTitle: vi.fn() };
+  const layoutNav = { clearContext: vi.fn() };
+  const router: RouterStub = { navigate: vi.fn() };
+  const api: ApiStub = { invoke: vi.fn() };
+
+  await TestBed.configureTestingModule({
+    imports: [ExamHistory],
+    providers: [
+      { provide: PageTitleService, useValue: pageTitle },
+      { provide: LayoutNavigationService, useValue: layoutNav },
+      { provide: ActivatedRoute, useValue: makeRoute(routeId) },
+      { provide: Router, useValue: router },
+      { provide: Api, useValue: api },
+    ],
+  }).compileComponents();
+
+  return { pageTitle, layoutNav, router, api };
+};
+
 describe('ExamHistory', () => {
-  let fixture: ComponentFixture<ExamHistory>;
-  let mockApi: ApiStub;
-  let titleService: PageTitleService;
-  let navService: LayoutNavigationService;
+  describe('with a valid course id', () => {
+    let fixture: ComponentFixture<ExamHistory>;
+    let mockApi: ApiStub;
+    let mockRouter: RouterStub;
+    let titleService: PageTitleService;
+    let navService: LayoutNavigationService;
 
-  beforeEach(async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockRouter = { navigate: vi.fn() };
-    const mockRoute = {
-      parent: {
-        parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-      },
-    };
+    beforeEach(async () => {
+      const stubs = await configureModule('1');
+      mockApi = stubs.api;
+      mockRouter = stubs.router;
+      titleService = TestBed.inject(PageTitleService);
+      navService = TestBed.inject(LayoutNavigationService);
+    });
 
-    mockApi = {
-      invoke: vi.fn(),
-    };
+    it('should set the page title and render upload list', async () => {
+      const mockUploads: ExamPdfHistoryItem[] = [
+        {
+          id: 1,
+          original_filename: 'exam1.pdf',
+          uploaded_at: '2026-04-15T00:00:00Z',
+          has_analysis: true,
+          has_practice: false,
+        },
+        {
+          id: 2,
+          original_filename: 'exam2.pdf',
+          uploaded_at: '2026-04-20T00:00:00Z',
+          has_analysis: false,
+          has_practice: true,
+        },
+      ];
 
-    await TestBed.configureTestingModule({
-      imports: [ExamHistory],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivatedRoute, useValue: mockRoute },
-        { provide: Router, useValue: mockRouter },
-        { provide: Api, useValue: mockApi },
-      ],
-    }).compileComponents();
+      mockApi.invoke.mockResolvedValue(mockUploads);
 
-    titleService = TestBed.inject(PageTitleService);
-    navService = TestBed.inject(LayoutNavigationService);
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      expect(titleService.setTitle).toHaveBeenCalledWith('My Exam History');
+      expect(navService.clearContext).toHaveBeenCalled();
+
+      const tableRows = fixture.nativeElement.querySelectorAll('.mat-mdc-row');
+      expect(tableRows.length).toBe(2);
+    });
+
+    it('should render empty state when no uploads', async () => {
+      mockApi.invoke.mockResolvedValue([]);
+
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain("You haven't uploaded any exams yet");
+    });
+
+    it('should render analysis and practice buttons correctly', async () => {
+      const mockUploads: ExamPdfHistoryItem[] = [
+        {
+          id: 1,
+          original_filename: 'exam1.pdf',
+          uploaded_at: '2026-04-15T00:00:00Z',
+          has_analysis: true,
+          has_practice: true,
+        },
+      ];
+
+      mockApi.invoke.mockResolvedValue(mockUploads);
+
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent;
+      expect(text).toContain('View Analysis');
+      expect(text).toContain('View Practice');
+    });
+
+    it('should show progress bar while loading', () => {
+      mockApi.invoke.mockReturnValue(new Promise(() => undefined));
+
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+
+      const progressBar = fixture.nativeElement.querySelector('mat-progress-bar');
+      expect(progressBar).not.toBeNull();
+    });
+
+    it('should show error message when api call fails', async () => {
+      mockApi.invoke.mockRejectedValue(new Error('network error'));
+
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain(
+        'Failed to load your exam history. Please try again.',
+      );
+    });
+
+    it('should navigate to grading analyzer', async () => {
+      mockApi.invoke.mockResolvedValue([]);
+
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+
+      (
+        fixture.componentInstance as unknown as { navigateToGradingAnalyzer: () => void }
+      ).navigateToGradingAnalyzer();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith([
+        'courses',
+        1,
+        'student',
+        'tools',
+        'grading-analyzer',
+      ]);
+    });
   });
 
-  it('should set the page title and render upload list', async () => {
-    const mockUploads: ExamPdfHistoryItem[] = [
-      {
-        id: 1,
-        original_filename: 'exam1.pdf',
-        uploaded_at: '2026-04-15T00:00:00Z',
-        has_analysis: true,
-        has_practice: false,
-      },
-      {
-        id: 2,
-        original_filename: 'exam2.pdf',
-        uploaded_at: '2026-04-20T00:00:00Z',
-        has_analysis: false,
-        has_practice: true,
-      },
-    ];
+  describe('with an invalid course id', () => {
+    let fixture: ComponentFixture<ExamHistory>;
 
-    mockApi.invoke.mockResolvedValue(mockUploads);
+    beforeEach(async () => {
+      await configureModule('not-a-number');
+    });
 
-    fixture = TestBed.createComponent(ExamHistory);
-    fixture.detectChanges();
-    await waitForHistoryLoad(fixture);
-    fixture.detectChanges();
+    it('should show an error when course id cannot be parsed', async () => {
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
 
-    expect(titleService.setTitle).toHaveBeenCalledWith('My Exam History');
-    expect(navService.clearContext).toHaveBeenCalled();
-
-    const tableRows = fixture.nativeElement.querySelectorAll('.mat-mdc-row');
-    expect(tableRows.length).toBe(2);
-  });
-
-  it('should render empty state when no uploads', async () => {
-    mockApi.invoke.mockResolvedValue([]);
-
-    fixture = TestBed.createComponent(ExamHistory);
-    fixture.detectChanges();
-    await waitForHistoryLoad(fixture);
-    fixture.detectChanges();
-
-    const emptyState = fixture.nativeElement.textContent;
-    expect(emptyState).toContain("You haven't uploaded any exams yet");
-  });
-
-  it('should render analysis and practice buttons correctly', async () => {
-    const mockUploads: ExamPdfHistoryItem[] = [
-      {
-        id: 1,
-        original_filename: 'exam1.pdf',
-        uploaded_at: '2026-04-15T00:00:00Z',
-        has_analysis: true,
-        has_practice: true,
-      },
-    ];
-
-    mockApi.invoke.mockResolvedValue(mockUploads);
-
-    fixture = TestBed.createComponent(ExamHistory);
-    fixture.detectChanges();
-    await waitForHistoryLoad(fixture);
-    fixture.detectChanges();
-
-    const text = fixture.nativeElement.textContent;
-    expect(text).toContain('View Analysis');
-    expect(text).toContain('View Practice');
+      expect(fixture.nativeElement.textContent).toContain('Failed to determine');
+    });
   });
 });

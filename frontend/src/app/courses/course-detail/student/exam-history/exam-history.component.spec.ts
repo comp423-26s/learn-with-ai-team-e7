@@ -153,6 +153,7 @@ describe('ExamHistory', () => {
     });
 
     it('should show error message when api call fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
       mockApi.invoke.mockRejectedValue(new Error('network error'));
 
       fixture = TestBed.createComponent(ExamHistory);

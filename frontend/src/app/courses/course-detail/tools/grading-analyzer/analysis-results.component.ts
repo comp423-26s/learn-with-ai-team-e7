@@ -1,16 +1,18 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { PageTitleService } from '../../../../page-title.service';
 import { GradingAnalyzerService } from '../grading-analyzer.service';
-
-type TopicSummary = {
-  topic: string;
-  performance: string;
-  average_score_pct: number;
-};
+import type { TopicSummaryLine } from '../../../../api/generated/models/topic-summary-line';
 
 @Component({
   selector: 'app-analysis-results',
@@ -26,10 +28,15 @@ export class AnalysisResultsComponent implements OnInit {
 
   protected readonly loading = signal(true);
   protected readonly errorMessage = signal('');
-  protected readonly strengths = signal<string[]>([]);
-  protected readonly weaknesses = signal<string[]>([]);
-  protected readonly needsReview = signal<string[]>([]);
-  protected readonly topics = signal<TopicSummary[]>([]);
+  protected readonly headline = signal('');
+  protected readonly strengths = signal<TopicSummaryLine[]>([]);
+  protected readonly weaknesses = signal<TopicSummaryLine[]>([]);
+  protected readonly needsReview = signal<TopicSummaryLine[]>([]);
+  protected readonly topics = computed(() => [
+    ...this.strengths(),
+    ...this.needsReview(),
+    ...this.weaknesses(),
+  ]);
 
   protected readonly courseId: number;
   protected readonly uploadId = signal<number | null>(null);
@@ -53,15 +60,17 @@ export class AnalysisResultsComponent implements OnInit {
 
     const analysis = await this.gradingAnalyzerService.getExamAnalysis(this.courseId, uploadId);
     if (analysis === null) {
-      this.errorMessage.set('Analysis not available yet. Please try again shortly.');
+      this.errorMessage.set(
+        'Something went wrong processing your exam. Please try uploading again.',
+      );
       this.loading.set(false);
       return;
     }
 
-    this.strengths.set(this.readStringArray(analysis, 'strengths'));
-    this.weaknesses.set(this.readStringArray(analysis, 'weaknesses'));
-    this.needsReview.set(this.readStringArray(analysis, 'needs_review'));
-    this.topics.set(this.readTopicSummaries(analysis));
+    this.headline.set(analysis.headline);
+    this.strengths.set(analysis.strengths);
+    this.weaknesses.set(analysis.weaknesses);
+    this.needsReview.set(analysis.needs_review);
     this.loading.set(false);
   }
 
@@ -77,35 +86,5 @@ export class AnalysisResultsComponent implements OnInit {
     }
 
     return Number.NaN;
-  }
-
-  private readStringArray(payload: Record<string, unknown>, key: string): string[] {
-    const value = payload[key];
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    return value.filter((item): item is string => typeof item === 'string');
-  }
-
-  private readTopicSummaries(payload: Record<string, unknown>): TopicSummary[] {
-    const value = payload['topic_summaries'];
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return value
-      .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
-      .map((item) => {
-        const topic = typeof item['topic'] === 'string' ? item['topic'] : 'Unknown topic';
-        const performance =
-          typeof item['performance'] === 'string' ? item['performance'] : 'needs_review';
-        const averageScore =
-          typeof item['average_score_pct'] === 'number' ? item['average_score_pct'] : 0;
-        return {
-          topic,
-          performance,
-          average_score_pct: averageScore,
-        };
-      });
   }
 }

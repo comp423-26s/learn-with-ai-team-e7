@@ -12,6 +12,7 @@ export type { CourseResponse } from './models/course-response';
 export type { CreateCourseRequest } from './models/create-course-request';
 export type { CreateIyowActivityRequest } from './models/create-iyow-activity-request';
 export type { CreateJokeRequest } from './models/create-joke-request';
+export type { ExamAnalysisSummary } from './models/exam-analysis-summary';
 export type { ExamPdfAnalysisResponse } from './models/exam-pdf-analysis-response';
 export type { ExamPdfHistoryItem } from './models/exam-pdf-history-item';
 export type { ExamPdfUploadResponse } from './models/exam-pdf-upload-response';
@@ -44,6 +45,7 @@ export type { RosterUploadStatusResponse } from './models/roster-upload-status-r
 export type { StudentSubmissionRow } from './models/student-submission-row';
 export type { SubmitIyowRequest } from './models/submit-iyow-request';
 export type { Term } from './models/term';
+export type { TopicSummaryLine } from './models/topic-summary-line';
 export type { UpdateCourseRequest } from './models/update-course-request';
 export type { UpdateIyowActivityRequest } from './models/update-iyow-activity-request';
 export type { UpdateMemberRoleRequest } from './models/update-member-role-request';

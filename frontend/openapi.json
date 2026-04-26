@@ -1474,7 +1474,7 @@
           "Exam PDFs"
         ],
         "summary": "Retrieve exam analysis",
-        "description": "Retrieves the analysis results for an uploaded exam PDF.\n\nArgs:\n    subject: Authenticated user requesting the analysis.\n    course: Course loaded via path dependency.\n    upload_id: Upload identifier from the URL path.\n    exam_pdf_upload_repo: Repository for loading upload records.\n\nReturns:\n    Structured analysis with topics, strengths, and weaknesses.\n\nRaises:\n    HTTPException: If the upload is not found, analysis is not available, or user lacks permission.",
+        "description": "Retrieves the analysis results for an uploaded exam PDF.\n\nArgs:\n    subject: Authenticated user requesting the analysis.\n    course: Course loaded via path dependency.\n    upload_id: Upload identifier from the URL path.\n    exam_pdf_upload_repo: Repository for loading upload records.\n    membership_repo: Repository for checking course membership.\n    exam_analysis_svc: Service for summarizing analysis data.\n\nReturns:\n    Structured analysis with topics, strengths, and weaknesses.\n\nRaises:\n    HTTPException: If the upload is not found, analysis is not available, or user lacks permission.",
         "operationId": "get_exam_analysis",
         "security": [
           {
@@ -3105,6 +3105,48 @@
         "title": "CreateJokeRequest",
         "description": "Request body for submitting a joke generation request."
       },
+      "ExamAnalysisSummary": {
+        "properties": {
+          "strengths": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummaryLine"
+            },
+            "type": "array",
+            "title": "Strengths"
+          },
+          "weaknesses": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummaryLine"
+            },
+            "type": "array",
+            "title": "Weaknesses"
+          },
+          "needs_review": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummaryLine"
+            },
+            "type": "array",
+            "title": "Needs Review"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "overall_score_pct": {
+            "type": "number",
+            "title": "Overall Score Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strengths",
+          "weaknesses",
+          "needs_review",
+          "headline",
+          "overall_score_pct"
+        ],
+        "title": "ExamAnalysisSummary"
+      },
       "ExamPdfAnalysisResponse": {
         "properties": {
           "upload_id": {
@@ -3112,9 +3154,7 @@
             "title": "Upload Id"
           },
           "analysis_data": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Analysis Data"
+            "$ref": "#/components/schemas/ExamAnalysisSummary"
           },
           "created_at": {
             "type": "string",
@@ -4319,6 +4359,39 @@
         ],
         "title": "Term",
         "description": "Academic term within a year."
+      },
+      "TopicSummaryLine": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "performance": {
+            "type": "string",
+            "enum": [
+              "strong",
+              "needs_review",
+              "weak"
+            ],
+            "title": "Performance"
+          },
+          "average_score_pct": {
+            "type": "number",
+            "title": "Average Score Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "topic",
+          "performance",
+          "average_score_pct"
+        ],
+        "title": "TopicSummaryLine"
       },
       "UpdateCourseRequest": {
         "properties": {

@@ -20,15 +20,29 @@ describe('GradingAnalyzerService', () => {
   });
 
   it('uploads and returns analysis when available', async () => {
-    api.invoke
-      .mockResolvedValueOnce({ id: 42 })
-      .mockResolvedValueOnce({ analysis_data: { strengths: ['Algebra'] } });
+    api.invoke.mockResolvedValueOnce({ id: 42 }).mockResolvedValueOnce({
+      analysis_data: {
+        headline: 'Good job!',
+        overall_score_pct: 0.9,
+        strengths: [
+          {
+            label: 'Algebra (strong)',
+            topic: 'Algebra',
+            performance: 'strong',
+            average_score_pct: 0.9,
+          },
+        ],
+        weaknesses: [],
+        needs_review: [],
+      },
+    });
 
     const file = new File(['pdf content'], 'exam.pdf', { type: 'application/pdf' });
     const result = await service.uploadExam(1, file);
 
     expect(result.uploadId).toBe(42);
-    expect(result.analysis).toEqual({ strengths: ['Algebra'] });
+    expect(result.analysis?.headline).toBe('Good job!');
+    expect(result.analysis?.strengths[0].topic).toBe('Algebra');
     expect(api.invoke).toHaveBeenCalledTimes(2);
   });
 
@@ -43,12 +57,21 @@ describe('GradingAnalyzerService', () => {
 
   it('gets persisted analysis when available', async () => {
     api.invoke.mockResolvedValueOnce({
-      analysis_data: { strengths: ['Algebra'], topic_summaries: [] },
+      analysis_data: {
+        headline: 'You did well in Math.',
+        overall_score_pct: 0.85,
+        strengths: [
+          { label: 'Math (strong)', topic: 'Math', performance: 'strong', average_score_pct: 0.9 },
+        ],
+        weaknesses: [],
+        needs_review: [],
+      },
     });
 
     const result = await service.getExamAnalysis(3, 11);
 
-    expect(result).toEqual({ strengths: ['Algebra'], topic_summaries: [] });
+    expect(result?.headline).toBe('You did well in Math.');
+    expect(result?.strengths[0].topic).toBe('Math');
     expect(api.invoke).toHaveBeenCalledTimes(1);
   });
 

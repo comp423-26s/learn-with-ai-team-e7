@@ -6,11 +6,14 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, Path, UploadFile
+from learnwithai.models.exam_analysis import ExamPerformanceAnalysis
 from learnwithai.services.exam_pdf_service import ExamPdfService
+from pydantic import ValidationError
 
 from ..di import (
     AuthenticatedUserDI,
     CourseByCourseIDPathDI,
+    ExamAnalysisServiceDI,
     ExamPdfServiceDI,
     ExamPdfUploadRepositoryDI,
     MembershipRepositoryDI,
@@ -97,6 +100,7 @@ async def get_exam_analysis(
     upload_id: Annotated[int, Path(gt=0)],
     exam_pdf_upload_repo: ExamPdfUploadRepositoryDI,
     membership_repo: MembershipRepositoryDI,
+    exam_analysis_svc: ExamAnalysisServiceDI,
 ) -> ExamPdfAnalysisResponse:
     """Retrieves the analysis results for an uploaded exam PDF.
 
@@ -105,6 +109,8 @@ async def get_exam_analysis(
         course: Course loaded via path dependency.
         upload_id: Upload identifier from the URL path.
         exam_pdf_upload_repo: Repository for loading upload records.
+        membership_repo: Repository for checking course membership.
+        exam_analysis_svc: Service for summarizing analysis data.
 
     Returns:
         Structured analysis with topics, strengths, and weaknesses.
@@ -130,10 +136,20 @@ async def get_exam_analysis(
             detail="Analysis not available. Upload may have failed or analysis is still processing.",
         )
 
+    try:
+        analysis = ExamPerformanceAnalysis.model_validate(upload.analysis_data)
+    except ValidationError:
+        logger.warning("Stored analysis_data for upload %s could not be parsed", upload_id)
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis not available. Upload may have failed or analysis is still processing.",
+        )
+
+    summary = exam_analysis_svc.summarize_analysis(analysis)
     assert upload.id is not None
     return ExamPdfAnalysisResponse(
         upload_id=upload.id,
-        analysis_data=upload.analysis_data,
+        analysis_data=summary,
         created_at=upload.created_at,
     )
 

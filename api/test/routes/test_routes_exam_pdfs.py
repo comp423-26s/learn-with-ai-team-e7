@@ -10,6 +10,7 @@ import pytest
 from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
 from learnwithai.errors import AuthorizationError
+from learnwithai.models.exam_analysis import ExamAnalysisSummary, TopicSummaryLine
 from learnwithai.tables.exam_pdf_upload import ExamPdfUpload
 from starlette.datastructures import Headers
 
@@ -18,6 +19,48 @@ from api.main import app
 from api.models import ExamPdfAnalysisResponse, ExamPdfHistoryItem, ExamPdfUploadResponse
 from api.routes import exam_pdfs
 from api.routes.exam_pdfs import get_exam_analysis, list_exam_pdf_uploads, upload_exam_pdf
+
+_STUB_PERFORMANCE_ANALYSIS = {
+    "topic_summaries": [
+        {"topic": "Algebra", "question_ids": ["q1"], "average_score_pct": 0.9, "performance": "strong"},
+        {"topic": "Geometry", "question_ids": ["q2"], "average_score_pct": 0.4, "performance": "weak"},
+        {"topic": "Trigonometry", "question_ids": ["q3"], "average_score_pct": 0.7, "performance": "needs_review"},
+    ],
+    "question_mappings": [
+        {"question_id": "q1", "topic": "Algebra", "performance": "strong", "score_earned": 9.0, "score_possible": 10.0},
+        {"question_id": "q2", "topic": "Geometry", "performance": "weak", "score_earned": 4.0, "score_possible": 10.0},
+        {
+            "question_id": "q3",
+            "topic": "Trigonometry",
+            "performance": "needs_review",
+            "score_earned": 7.0,
+            "score_possible": 10.0,
+        },
+    ],
+    "strengths": ["Algebra"],
+    "weaknesses": ["Geometry"],
+    "needs_review": ["Trigonometry"],
+}
+
+_STUB_SUMMARY = ExamAnalysisSummary(
+    headline="You performed well in Algebra. Focus your revision on Geometry.",
+    overall_score_pct=0.667,
+    strengths=[
+        TopicSummaryLine(label="Algebra (strong)", topic="Algebra", performance="strong", average_score_pct=0.9)
+    ],
+    weaknesses=[TopicSummaryLine(label="Geometry (weak)", topic="Geometry", performance="weak", average_score_pct=0.4)],
+    needs_review=[
+        TopicSummaryLine(
+            label="Trigonometry (needs review)", topic="Trigonometry", performance="needs_review", average_score_pct=0.7
+        )
+    ],
+)
+
+
+def _stub_exam_analysis_svc() -> MagicMock:
+    mock = MagicMock()
+    mock.summarize_analysis.return_value = _STUB_SUMMARY
+    return mock
 
 
 def _stub_user(pid: int = 123456789) -> MagicMock:
@@ -54,7 +97,7 @@ def _stub_upload_record(record_id: int = 22, course_id: int = 1, uploader_pid: i
     mock.content_type = "application/pdf"
     mock.size_bytes = 13
     mock.created_at = datetime(2026, 4, 15, tzinfo=timezone.utc)
-    mock.analysis_data = {"strengths": ["Algebra"], "weaknesses": ["Geometry"]}
+    mock.analysis_data = _STUB_PERFORMANCE_ANALYSIS
     return mock
 
 
@@ -180,14 +223,17 @@ async def test_get_exam_analysis_returns_persisted_analysis() -> None:
     course = _stub_course()
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = _stub_exam_analysis_svc()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
     upload_repo.get_by_id.return_value = _stub_upload_record()
 
-    result = await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+    result = await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
 
     assert isinstance(result, ExamPdfAnalysisResponse)
     assert result.upload_id == 22
-    assert result.analysis_data["strengths"] == ["Algebra"]
+    assert isinstance(result.analysis_data, ExamAnalysisSummary)
+    assert result.analysis_data.headline == "You performed well in Algebra. Focus your revision on Geometry."
+    exam_analysis_svc.summarize_analysis.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -196,13 +242,32 @@ async def test_get_exam_analysis_returns_404_when_analysis_missing() -> None:
     course = _stub_course()
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
     upload = _stub_upload_record()
     upload.analysis_data = None
     upload_repo.get_by_id.return_value = upload
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_get_exam_analysis_returns_404_when_stored_analysis_is_malformed() -> None:
+    subject = _stub_user()
+    course = _stub_course()
+    upload_repo = MagicMock()
+    membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+    upload = _stub_upload_record()
+    upload.analysis_data = {"completely_invalid": "data"}
+    upload_repo.get_by_id.return_value = upload
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
 
     assert exc_info.value.status_code == 404
 
@@ -213,10 +278,11 @@ async def test_get_exam_analysis_returns_403_when_not_enrolled() -> None:
     course = _stub_course()
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
     membership_repo.get_by_user_and_course.return_value = None
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
 
     assert exc_info.value.status_code == 403
 
@@ -227,11 +293,12 @@ async def test_get_exam_analysis_returns_404_when_upload_missing() -> None:
     course = _stub_course()
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
     upload_repo.get_by_id.return_value = None
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_exam_analysis(subject, course, 999, upload_repo, membership_repo)
+        await get_exam_analysis(subject, course, 999, upload_repo, membership_repo, exam_analysis_svc)
 
     assert exc_info.value.status_code == 404
 
@@ -242,11 +309,12 @@ async def test_get_exam_analysis_returns_404_for_mismatched_course() -> None:
     course = _stub_course(course_id=1)
     upload_repo = MagicMock()
     membership_repo = MagicMock()
+    exam_analysis_svc = MagicMock()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
     upload_repo.get_by_id.return_value = _stub_upload_record(course_id=2)
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
+        await get_exam_analysis(subject, course, 22, upload_repo, membership_repo, exam_analysis_svc)
 
     assert exc_info.value.status_code == 404
 

@@ -32,6 +32,6 @@ describe('Tools', () => {
     expect(mockLayoutNavigation.clearContext).toHaveBeenCalled();
     expect(mockPageTitle.setTitle).toHaveBeenCalledWith('Instructor Tools');
     expect(fixture.nativeElement.textContent).toContain('Joke Generator');
-    expect(fixture.nativeElement.textContent).not.toContain('Grading Analyzer');
+    expect(fixture.nativeElement.textContent).toContain('Grading Analyzer');
   });
 });

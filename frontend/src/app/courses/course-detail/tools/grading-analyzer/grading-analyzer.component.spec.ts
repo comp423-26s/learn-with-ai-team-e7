@@ -30,7 +30,7 @@ describe('GradingAnalyzer', () => {
         : vi.fn(() =>
             Promise.resolve({
               uploadId: 42,
-              analysis: { strengths: [] } as Record<string, unknown>,
+              analysis: null,
             }),
           ),
     };
@@ -334,12 +334,12 @@ describe('GradingAnalyzer', () => {
   });
 
   it('should show spinner while uploading', async () => {
-    let resolveUpload!: (value: { uploadId: number; analysis: Record<string, unknown> }) => void;
+    let resolveUpload!: (value: { uploadId: number; analysis: null }) => void;
     const { fixture, mockService } = await setup();
     const component = fixture.componentInstance;
 
     mockService.uploadExam.mockReturnValueOnce(
-      new Promise<{ uploadId: number; analysis: Record<string, unknown> }>((res) => {
+      new Promise<{ uploadId: number; analysis: null }>((res) => {
         resolveUpload = res;
       }),
     );
@@ -352,7 +352,7 @@ describe('GradingAnalyzer', () => {
 
     expect(component['uploading']()).toBe(true);
 
-    resolveUpload({ uploadId: 1, analysis: { strengths: [] } });
+    resolveUpload({ uploadId: 1, analysis: null });
     await submitPromise;
     fixture.detectChanges();
 

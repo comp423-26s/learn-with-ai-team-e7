@@ -10,30 +10,40 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { AnalysisResultsComponent } from './analysis-results.component';
 import { GradingAnalyzerService } from '../grading-analyzer.service';
 import { PageTitleService } from '../../../../page-title.service';
+import type { ExamAnalysisSummary } from '../../../../api/generated/models/exam-analysis-summary';
+
+const STUB_ANALYSIS: ExamAnalysisSummary = {
+  headline: 'You performed well in Algebra. Focus your revision on Geometry.',
+  overall_score_pct: 0.667,
+  strengths: [
+    { label: 'Algebra (strong)', topic: 'Algebra', performance: 'strong', average_score_pct: 0.9 },
+  ],
+  weaknesses: [
+    { label: 'Geometry (weak)', topic: 'Geometry', performance: 'weak', average_score_pct: 0.4 },
+  ],
+  needs_review: [
+    {
+      label: 'Trigonometry (needs review)',
+      topic: 'Trigonometry',
+      performance: 'needs_review',
+      average_score_pct: 0.7,
+    },
+  ],
+};
 
 describe('AnalysisResultsComponent', () => {
   async function setup(
     options: {
       uploadId?: string | null;
-      analysis?: Record<string, unknown> | null;
+      analysis?: ExamAnalysisSummary | null;
       includeRouteId?: boolean;
     } = {},
   ) {
     const hasAnalysisOverride = Object.prototype.hasOwnProperty.call(options, 'analysis');
     const mockService = {
-      getExamAnalysis: vi.fn().mockResolvedValue(
-        hasAnalysisOverride
-          ? options.analysis
-          : {
-              strengths: ['Algebra'],
-              weaknesses: ['Geometry'],
-              needs_review: ['Trigonometry'],
-              topic_summaries: [
-                { topic: 'Algebra', performance: 'strong', average_score_pct: 0.9 },
-                { topic: 'Geometry', performance: 'weak', average_score_pct: 0.4 },
-              ],
-            },
-      ),
+      getExamAnalysis: vi
+        .fn()
+        .mockResolvedValue(hasAnalysisOverride ? options.analysis : STUB_ANALYSIS),
     };
 
     const queryParams = options.uploadId === null ? {} : { uploadId: options.uploadId ?? '22' };
@@ -69,7 +79,7 @@ describe('AnalysisResultsComponent', () => {
     return { fixture, mockService };
   }
 
-  it('loads and renders analysis data', async () => {
+  it('loads and renders analysis data with headline', async () => {
     const { fixture } = await setup();
     const el: HTMLElement = fixture.nativeElement;
 
@@ -77,6 +87,7 @@ describe('AnalysisResultsComponent', () => {
     expect(el.textContent).toContain('Algebra');
     expect(el.textContent).toContain('Geometry');
     expect(el.textContent).toContain('Trigonometry');
+    expect(el.textContent).toContain('You performed well in Algebra.');
   });
 
   it('shows error for invalid upload id', async () => {
@@ -86,20 +97,21 @@ describe('AnalysisResultsComponent', () => {
     expect(el.textContent).toContain('Missing or invalid upload ID.');
   });
 
-  it('shows not-available message when analysis is null', async () => {
+  it('shows error message when analysis is null', async () => {
     const { fixture } = await setup({ analysis: null });
     const el: HTMLElement = fixture.nativeElement;
 
-    expect(el.textContent).toContain('Analysis not available yet.');
+    expect(el.textContent).toContain('Something went wrong processing your exam.');
   });
 
   it('shows empty-state messages when analysis arrays are empty', async () => {
     const { fixture } = await setup({
       analysis: {
+        headline: '',
+        overall_score_pct: 0,
         strengths: [],
         weaknesses: [],
         needs_review: [],
-        topic_summaries: [],
       },
     });
     const el: HTMLElement = fixture.nativeElement;
@@ -110,34 +122,13 @@ describe('AnalysisResultsComponent', () => {
     expect(el.textContent).toContain('No topics currently marked for review.');
   });
 
-  it('falls back for malformed topic summary entries', async () => {
-    const { fixture } = await setup({
-      analysis: {
-        strengths: ['Topic A'],
-        weaknesses: [],
-        needs_review: [],
-        topic_summaries: [{ performance: 123, average_score_pct: 'n/a' }],
-      },
-    });
+  it('renders topic labels from TopicSummaryLine objects', async () => {
+    const { fixture } = await setup();
     const el: HTMLElement = fixture.nativeElement;
 
-    expect(el.textContent).toContain('Unknown topic');
-    expect(el.textContent).toContain('needs_review');
-    expect(el.textContent).toContain('0.0%');
-  });
-
-  it('shows no topic summary when topic_summaries is not an array', async () => {
-    const { fixture } = await setup({
-      analysis: {
-        strengths: ['Topic A'],
-        weaknesses: ['Topic B'],
-        needs_review: ['Topic C'],
-        topic_summaries: 'not-an-array',
-      },
-    });
-    const el: HTMLElement = fixture.nativeElement;
-
-    expect(el.textContent).toContain('No topic summary available.');
+    expect(el.textContent).toContain('Algebra (strong)');
+    expect(el.textContent).toContain('Geometry (weak)');
+    expect(el.textContent).toContain('Trigonometry (needs review)');
   });
 
   it('falls back to NaN course id when route chain has no course id', async () => {
@@ -148,17 +139,20 @@ describe('AnalysisResultsComponent', () => {
     expect(mockService.getExamAnalysis).toHaveBeenCalledWith(Number.NaN, 22);
   });
 
-  it('shows no strengths when strengths is not an array', async () => {
+  it('shows no headline card when headline is empty', async () => {
     const { fixture } = await setup({
       analysis: {
-        strengths: 'not-an-array',
+        headline: '',
+        overall_score_pct: 0.5,
+        strengths: [
+          { label: 'Math (strong)', topic: 'Math', performance: 'strong', average_score_pct: 0.9 },
+        ],
         weaknesses: [],
         needs_review: [],
-        topic_summaries: [],
       },
     });
     const el: HTMLElement = fixture.nativeElement;
 
-    expect(el.textContent).toContain('No strengths identified.');
+    expect(el.querySelector('.headline-card')).toBeNull();
   });
 });

@@ -73,10 +73,16 @@ export type { GetActiveSubmission$Params as GetActiveSubmission$Params } from '.
 export { getActiveSubmission as getActiveSubmission } from './fn/activities/get-active-submission';
 export type { GetStudentSubmissionHistory$Params as GetStudentSubmissionHistory$Params } from './fn/activities/get-student-submission-history';
 export { getStudentSubmissionHistory as getStudentSubmissionHistory } from './fn/activities/get-student-submission-history';
+export type { ListExamPdfUploads$Params as ListExamPdfUploads$Params } from './fn/exam-pd-fs/list-exam-pdf-uploads';
+export { listExamPdfUploads as listExamPdfUploads } from './fn/exam-pd-fs/list-exam-pdf-uploads';
 export type { UploadExamPdf$Params as UploadExamPdf$Params } from './fn/exam-pd-fs/upload-exam-pdf';
 export { uploadExamPdf as uploadExamPdf } from './fn/exam-pd-fs/upload-exam-pdf';
 export type { GetExamAnalysis$Params as GetExamAnalysis$Params } from './fn/exam-pd-fs/get-exam-analysis';
 export { getExamAnalysis as getExamAnalysis } from './fn/exam-pd-fs/get-exam-analysis';
+export type { GetPracticeMaterials$Params as GetPracticeMaterials$Params } from './fn/exam-pd-fs/get-practice-materials';
+export { getPracticeMaterials as getPracticeMaterials } from './fn/exam-pd-fs/get-practice-materials';
+export type { GeneratePracticeMaterials$Params as GeneratePracticeMaterials$Params } from './fn/exam-pd-fs/generate-practice-materials';
+export { generatePracticeMaterials as generatePracticeMaterials } from './fn/exam-pd-fs/generate-practice-materials';
 export type { UploadRosterCsv$Params as UploadRosterCsv$Params } from './fn/roster-uploads/upload-roster-csv';
 export { uploadRosterCsv as uploadRosterCsv } from './fn/roster-uploads/upload-roster-csv';
 export type { GetRosterUploadStatus$Params as GetRosterUploadStatus$Params } from './fn/roster-uploads/get-roster-upload-status';

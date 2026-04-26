@@ -146,6 +146,13 @@ export const routes: Routes = [
               ),
           },
           {
+            path: 'student/exam-history',
+            loadComponent: () =>
+              import('./courses/course-detail/student/exam-history/exam-history.component').then(
+                (m) => m.ExamHistory,
+              ),
+          },
+          {
             path: 'settings',
             loadComponent: () =>
               import('./courses/course-detail/settings/settings.component').then((m) => m.Settings),

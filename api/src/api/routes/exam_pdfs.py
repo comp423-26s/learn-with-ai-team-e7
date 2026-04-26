@@ -14,8 +14,9 @@ from ..di import (
     ExamPdfServiceDI,
     ExamPdfUploadRepositoryDI,
     MembershipRepositoryDI,
+    PracticeMaterialRepositoryDI,
 )
-from ..models import ExamPdfAnalysisResponse, ExamPdfUploadResponse
+from ..models import ExamPdfAnalysisResponse, ExamPdfHistoryItem, ExamPdfUploadResponse
 
 MAX_PDF_BYTES = 50 * 1024 * 1024
 logger = logging.getLogger(__name__)
@@ -135,6 +136,66 @@ async def get_exam_analysis(
         analysis_data=upload.analysis_data,
         created_at=upload.created_at,
     )
+
+
+@router.get(
+    "",
+    response_model=list[ExamPdfHistoryItem],
+    status_code=200,
+    summary="List exam PDF uploads for the current student",
+    response_description="All exam uploads by the requesting student in this course, newest first.",
+    responses={
+        401: {"description": "Not authenticated."},
+        403: {"description": "Insufficient permissions."},
+        404: {"description": "Course not found."},
+    },
+)
+async def list_exam_pdf_uploads(
+    subject: AuthenticatedUserDI,
+    course: CourseByCourseIDPathDI,
+    exam_pdf_upload_repo: ExamPdfUploadRepositoryDI,
+    practice_material_repo: PracticeMaterialRepositoryDI,
+    membership_repo: MembershipRepositoryDI,
+) -> list[ExamPdfHistoryItem]:
+    """Retrieves all exam PDF uploads for the requesting student in a course.
+
+    Args:
+        subject: Authenticated user requesting the list.
+        course: Course loaded via path dependency.
+        exam_pdf_upload_repo: Repository for loading upload records.
+        practice_material_repo: Repository for checking practice material existence.
+        membership_repo: Repository for checking course membership.
+
+    Returns:
+        List of exam uploads for the student, newest first.
+
+    Raises:
+        HTTPException: If user lacks permissions or course is not found.
+    """
+    membership = membership_repo.get_by_user_and_course(subject, course)
+    if membership is None:
+        raise HTTPException(status_code=403, detail="Insufficient permissions.")
+
+    assert course.id is not None
+    uploads = exam_pdf_upload_repo.list_by_student_and_course(subject.pid, course.id)
+    practice_materials = practice_material_repo.list_by_student_and_course(subject.pid, course.id)
+
+    # Create a set of upload IDs that have practice materials for fast lookup
+    upload_ids_with_practice = {pm.upload_id for pm in practice_materials}
+
+    results = []
+    for upload in uploads:
+        assert upload.id is not None
+        results.append(
+            ExamPdfHistoryItem(
+                id=upload.id,
+                original_filename=upload.original_filename,
+                uploaded_at=upload.created_at,
+                has_analysis=upload.analysis_data is not None,
+                has_practice=upload.id in upload_ids_with_practice,
+            )
+        )
+    return results
 
 
 def _validate_content_type(file: UploadFile, uploader_pid: int, course_id: int | None) -> None:

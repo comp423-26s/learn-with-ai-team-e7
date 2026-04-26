@@ -15,9 +15,9 @@ from starlette.datastructures import Headers
 
 from api.di import exam_pdf_service_factory, get_authenticated_user, get_course_by_path_id
 from api.main import app
-from api.models import ExamPdfAnalysisResponse, ExamPdfUploadResponse
+from api.models import ExamPdfAnalysisResponse, ExamPdfHistoryItem, ExamPdfUploadResponse
 from api.routes import exam_pdfs
-from api.routes.exam_pdfs import get_exam_analysis, upload_exam_pdf
+from api.routes.exam_pdfs import get_exam_analysis, list_exam_pdf_uploads, upload_exam_pdf
 
 
 def _stub_user(pid: int = 123456789) -> MagicMock:
@@ -249,3 +249,107 @@ async def test_get_exam_analysis_returns_404_for_mismatched_course() -> None:
         await get_exam_analysis(subject, course, 22, upload_repo, membership_repo)
 
     assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_list_exam_pdf_uploads_returns_all_uploads_for_student() -> None:
+    subject = _stub_user(pid=123456789)
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    practice_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+
+    # Create mock uploads with different timestamps
+    upload1 = _stub_upload_record(record_id=1, course_id=1, uploader_pid=123456789)
+    upload1.created_at = datetime(2026, 4, 10, tzinfo=timezone.utc)
+    upload1.analysis_data = {"strengths": ["Algebra"]}
+
+    upload2 = _stub_upload_record(record_id=2, course_id=1, uploader_pid=123456789)
+    upload2.created_at = datetime(2026, 4, 15, tzinfo=timezone.utc)
+    upload2.analysis_data = None
+
+    upload_repo.list_by_student_and_course.return_value = [upload2, upload1]  # Newest first
+
+    # Mock practice materials
+    pm1 = MagicMock()
+    pm1.upload_id = 2
+    practice_repo.list_by_student_and_course.return_value = [pm1]
+
+    result = await list_exam_pdf_uploads(subject, course, upload_repo, practice_repo, membership_repo)
+
+    assert len(result) == 2
+    assert isinstance(result[0], ExamPdfHistoryItem)
+    assert result[0].id == 2
+    assert result[0].original_filename == "exam.pdf"
+    assert result[0].has_analysis is False
+    assert result[0].has_practice is True
+    assert result[1].id == 1
+    assert result[1].has_analysis is True
+    assert result[1].has_practice is False
+
+
+@pytest.mark.anyio
+async def test_list_exam_pdf_uploads_returns_empty_list_when_no_uploads() -> None:
+    subject = _stub_user(pid=123456789)
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    practice_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+
+    upload_repo.list_by_student_and_course.return_value = []
+    practice_repo.list_by_student_and_course.return_value = []
+
+    result = await list_exam_pdf_uploads(subject, course, upload_repo, practice_repo, membership_repo)
+
+    assert result == []
+
+
+@pytest.mark.anyio
+async def test_list_exam_pdf_uploads_returns_403_when_not_enrolled() -> None:
+    subject = _stub_user(pid=123456789)
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    practice_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await list_exam_pdf_uploads(subject, course, upload_repo, practice_repo, membership_repo)
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.integration
+def test_list_exam_pdf_uploads_accepts_get_request(client: TestClient) -> None:
+    subject = _stub_user(pid=123456789)
+    course = _stub_course(course_id=1)
+    upload_repo = MagicMock()
+    practice_repo = MagicMock()
+    membership_repo = MagicMock()
+    membership_repo.get_by_user_and_course.return_value = MagicMock()
+
+    upload1 = _stub_upload_record(record_id=1, course_id=1, uploader_pid=123456789)
+    upload_repo.list_by_student_and_course.return_value = [upload1]
+    practice_repo.list_by_student_and_course.return_value = []
+
+    from api.di import (
+        exam_pdf_upload_repository_factory,
+        membership_repository_factory,
+        practice_material_repository_factory,
+    )
+
+    app.dependency_overrides[get_authenticated_user] = lambda: subject
+    app.dependency_overrides[get_course_by_path_id] = lambda: course
+    app.dependency_overrides[exam_pdf_upload_repository_factory] = lambda: upload_repo
+    app.dependency_overrides[practice_material_repository_factory] = lambda: practice_repo
+    app.dependency_overrides[membership_repository_factory] = lambda: membership_repo
+
+    response = client.get("/api/courses/1/exam-pdfs")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["id"] == 1
+    assert data[0]["has_practice"] is False

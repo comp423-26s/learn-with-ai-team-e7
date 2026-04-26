@@ -10,7 +10,7 @@ import { PageTitleService } from '../../../page-title.service';
 import { LayoutNavigationService } from '../../../layout/layout-navigation.service';
 
 describe('StudentTools', () => {
-  it('should set the page title and render a Grading Analyzer card', () => {
+  it('should set the page title and render Grading Analyzer and Exam History cards', () => {
     const mockPageTitle = {
       title: vi.fn(),
       setTitle: vi.fn(),
@@ -32,5 +32,6 @@ describe('StudentTools', () => {
     expect(mockLayoutNavigation.clearContext).toHaveBeenCalled();
     expect(mockPageTitle.setTitle).toHaveBeenCalledWith('Student Tools');
     expect(fixture.nativeElement.textContent).toContain('Grading Analyzer');
+    expect(fixture.nativeElement.textContent).toContain('My Exam History');
   });
 });

@@ -173,6 +173,7 @@ describe('ExamHistory', () => {
       fixture = TestBed.createComponent(ExamHistory);
       fixture.detectChanges();
       await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
 
       (fixture.componentInstance as unknown as ExamHistoryTestInstance).navigateToGradingAnalyzer();
 

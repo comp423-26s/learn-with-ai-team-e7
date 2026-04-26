@@ -36,7 +36,7 @@ const waitForHistoryLoad = async (fixture: ComponentFixture<ExamHistory>): Promi
     if (!instance.loading()) {
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
   }
 
   throw new Error('Timed out waiting for exam history to load.');

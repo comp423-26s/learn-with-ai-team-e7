@@ -31,6 +31,8 @@ def test_api_models_exports_expected_symbols() -> None:
         "OperatorProfile",
         "OperatorResponse",
         "PaginatedRosterResponse",
+        "PracticeMaterialGenerateResponse",
+        "PracticeMaterialResponse",
         "QueueMessagePreviewResponse",
         "QueueInfoResponse",
         "RosterMemberResponse",

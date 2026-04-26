@@ -40,6 +40,7 @@ from .operator import (
     UpdateOperatorRoleRequest,
     UserSearchResult,
 )
+from .practice_material import PracticeMaterialGenerateResponse, PracticeMaterialResponse
 from .roster_upload import RosterUploadResponse, RosterUploadStatusResponse
 from .user_profile import UpdateProfileRequest, UserProfile
 
@@ -65,6 +66,8 @@ __all__ = [
     "OperatorProfile",
     "OperatorResponse",
     "PaginatedRosterResponse",
+    "PracticeMaterialGenerateResponse",
+    "PracticeMaterialResponse",
     "QueueMessagePreviewResponse",
     "QueueInfoResponse",
     "RosterMemberResponse",

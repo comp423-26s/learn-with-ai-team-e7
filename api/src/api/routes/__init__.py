@@ -11,6 +11,7 @@ from api.routes.health import router as health_router
 from api.routes.joke_generation import router as joke_generation_router
 from api.routes.me import router as me_router
 from api.routes.operations import router as operations_router
+from api.routes.practice_materials import router as practice_materials_router
 from api.routes.roster_uploads import router as roster_uploads_router
 
 API_ROUTERS = (
@@ -20,6 +21,7 @@ API_ROUTERS = (
     courses_router,
     activities_router,
     exam_pdfs_router,
+    practice_materials_router,
     roster_uploads_router,
     joke_generation_router,
     operations_router,

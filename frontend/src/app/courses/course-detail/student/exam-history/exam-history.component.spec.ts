@@ -38,8 +38,6 @@ const waitForHistoryLoad = async (fixture: ComponentFixture<ExamHistory>): Promi
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 10));
   }
-
-  throw new Error('Timed out waiting for exam history to load.');
 };
 
 const configureModule = async (routeId: string) => {

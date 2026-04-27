@@ -11,6 +11,9 @@ import { AnalysisResultsComponent } from './analysis-results.component';
 import { GradingAnalyzerService } from '../grading-analyzer.service';
 import { PageTitleService } from '../../../../page-title.service';
 import type { ExamAnalysisSummary } from '../../../../api/generated/models/exam-analysis-summary';
+import { PracticeService } from '../practice.service';
+import { Router } from '@angular/router';
+import { Provider } from '@angular/core';
 
 const STUB_ANALYSIS: ExamAnalysisSummary = {
   headline: 'You performed well in Algebra. Focus your revision on Geometry.',
@@ -37,6 +40,7 @@ describe('AnalysisResultsComponent', () => {
       uploadId?: string | null;
       analysis?: ExamAnalysisSummary | null;
       includeRouteId?: boolean;
+      extraProviders?: Provider[];
     } = {},
   ) {
     const hasAnalysisOverride = Object.prototype.hasOwnProperty.call(options, 'analysis');
@@ -68,6 +72,7 @@ describe('AnalysisResultsComponent', () => {
         { provide: GradingAnalyzerService, useValue: mockService },
         { provide: PageTitleService, useValue: { setTitle: vi.fn() } },
         { provide: ActivatedRoute, useValue: mockRoute },
+        ...(options.extraProviders ?? []),
       ],
     });
 
@@ -154,5 +159,155 @@ describe('AnalysisResultsComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
 
     expect(el.querySelector('.headline-card')).toBeNull();
+  });
+
+  describe('Generate Practice Materials button', () => {
+    const defaultPracticeProviders = (
+      overrides: {
+        generatePractice?: ReturnType<typeof vi.fn>;
+        getPractice?: ReturnType<typeof vi.fn>;
+        navigate?: ReturnType<typeof vi.fn>;
+      } = {},
+    ) => {
+      const practiceServiceMock = {
+        generatePractice:
+          overrides.generatePractice ?? vi.fn().mockResolvedValue({ job_id: 1, status: 'pending' }),
+        getPractice:
+          overrides.getPractice ??
+          vi.fn().mockResolvedValue({ id: 5, course_id: 1, upload_id: 42 }),
+      };
+      const routerMock = {
+        navigate: overrides.navigate ?? vi.fn().mockResolvedValue(true),
+      };
+      return {
+        practiceServiceMock,
+        routerMock,
+        providers: [
+          { provide: PracticeService, useValue: practiceServiceMock },
+          { provide: Router, useValue: routerMock },
+        ] satisfies Provider[],
+      };
+    };
+
+    it('should not show button while exam results are loading', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['loading'].set(true);
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="generate-practice-btn"]'),
+      ).toBeNull();
+    });
+
+    it('should show button once results have loaded', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['loading'].set(false);
+      component['uploadId'].set(42);
+      fixture.detectChanges();
+
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="generate-practice-btn"]'),
+      ).not.toBeNull();
+    });
+
+    it('should call generatePractice with courseId and uploadId on click', async () => {
+      const { practiceServiceMock, providers } = defaultPracticeProviders();
+      const { fixture } = await setup({ extraProviders: providers });
+      const component = fixture.componentInstance;
+
+      component['loading'].set(false);
+      component['uploadId'].set(42);
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="generate-practice-btn"]').click();
+      await fixture.whenStable();
+
+      expect(practiceServiceMock.generatePractice).toHaveBeenCalledWith(component['courseId'], 42);
+    });
+
+    it('should show spinner while generating', async () => {
+      const { providers } = defaultPracticeProviders({
+        generatePractice: vi.fn().mockReturnValue(new Promise(() => {})),
+      });
+      const { fixture } = await setup({ extraProviders: providers });
+      const component = fixture.componentInstance;
+
+      component['loading'].set(false);
+      component['uploadId'].set(42);
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="generate-practice-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['generatingPractice']()).toBe(true);
+      expect(fixture.nativeElement.querySelector('mat-spinner')).not.toBeNull();
+    });
+
+    it('should hide spinner after completion', async () => {
+      const { providers } = defaultPracticeProviders();
+      const { fixture } = await setup({ extraProviders: providers });
+      const component = fixture.componentInstance;
+
+      component['loading'].set(false);
+      component['uploadId'].set(42);
+      fixture.detectChanges();
+
+      await component['onGeneratePractice']();
+
+      expect(component['generatingPractice']()).toBe(false);
+    });
+
+    it('should navigate to practice page on success', async () => {
+      const { routerMock, providers } = defaultPracticeProviders();
+      const { fixture } = await setup({ extraProviders: providers });
+      const component = fixture.componentInstance;
+
+      component['uploadId'].set(42);
+      await component['onGeneratePractice']();
+
+      expect(routerMock.navigate).toHaveBeenCalledWith(
+        expect.arrayContaining(['practice']),
+        expect.objectContaining({ queryParams: { uploadId: 42 } }),
+      );
+    });
+
+    it('should show error message when generation fails', async () => {
+      const { providers } = defaultPracticeProviders({
+        generatePractice: vi.fn().mockRejectedValue(new Error('network error')),
+      });
+      const { fixture } = await setup({ extraProviders: providers });
+      const component = fixture.componentInstance;
+
+      component['loading'].set(false);
+      component['uploadId'].set(42);
+      fixture.detectChanges();
+
+      await component['onGeneratePractice']();
+      fixture.detectChanges();
+
+      expect(component['practiceError']()).toContain('try again');
+      expect(fixture.nativeElement.querySelector('.practice-error')).not.toBeNull();
+    });
+
+    it('should show error if navigation fails after generation', async () => {
+      const { providers } = defaultPracticeProviders({
+        navigate: vi.fn().mockResolvedValue(false),
+      });
+      const { fixture } = await setup({ extraProviders: providers });
+      const component = fixture.componentInstance;
+
+      component['loading'].set(false);
+      component['uploadId'].set(42);
+      fixture.detectChanges();
+
+      await component['onGeneratePractice']();
+      fixture.detectChanges();
+
+      expect(component['practiceError']()).toContain('Please refresh');
+    });
   });
 });

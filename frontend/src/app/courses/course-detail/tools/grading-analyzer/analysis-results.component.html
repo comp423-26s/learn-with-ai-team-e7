@@ -43,6 +43,31 @@
                 </tr>
               }
             </tbody>
+
+            @if (!loading()) {
+              <div class="practice-actions">
+                @if (!generatingPractice()) {
+                  <button
+                    mat-flat-button
+                    color="primary"
+                    data-testid="generate-practice-btn"
+                    (click)="onGeneratePractice()"
+                  >
+                    <mat-icon>auto_awesome</mat-icon>
+                    Generate Practice Materials
+                  </button>
+                } @else {
+                  <div class="practice-generating">
+                    <mat-spinner diameter="20" />
+                    <span>Generating your practice materials…</span>
+                  </div>
+                }
+
+                @if (practiceError()) {
+                  <p class="practice-error">{{ practiceError() }}</p>
+                }
+              </div>
+            }
           </table>
         }
       </mat-card-content>

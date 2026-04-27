@@ -116,10 +116,24 @@ export const routes: Routes = [
                   ),
               },
               {
+                path: 'tools/grading-analyzer/practice',
+                loadComponent: () =>
+                  import('./courses/course-detail/tools/practice-materials/practice-materials.component').then(
+                    (m) => m.PracticeMaterialsComponent,
+                  ),
+              },
+              {
                 path: 'grading-analyzer/results',
                 loadComponent: () =>
                   import('./courses/course-detail/tools/grading-analyzer/analysis-results.component').then(
                     (m) => m.AnalysisResultsComponent,
+                  ),
+              },
+              {
+                path: 'student/tools/grading-analyzer/practice',
+                loadComponent: () =>
+                  import('./courses/course-detail/tools/practice-materials/practice-materials.component').then(
+                    (m) => m.PracticeMaterialsComponent,
                   ),
               },
             ],

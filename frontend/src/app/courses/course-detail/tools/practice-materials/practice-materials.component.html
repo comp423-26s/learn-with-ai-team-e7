@@ -1,0 +1,176 @@
+@if (loading()) {
+  <div class="loading-wrap">
+    <mat-spinner diameter="28" />
+    <p>Loading practice materials...</p>
+  </div>
+} @else if (errorMessage()) {
+  <mat-card appearance="outlined" class="error-card">
+    <mat-card-content>
+      <p role="alert">{{ errorMessage() }}</p>
+      <a mat-button routerLink="../">Back to Results</a>
+    </mat-card-content>
+  </mat-card>
+} @else {
+  <div class="practice-grid">
+    <!-- weak topics heading -->
+    @if (weakTopics().length > 0) {
+      <p class="weak-topics-heading" data-testid="weak-topics-heading">
+        Targeting weak topics: {{ weakTopics().join(', ') }}
+      </p>
+    }
+
+    <!-- ── flashcards ─────────────────────────────────────────────────── -->
+    <mat-card appearance="outlined" class="section-card">
+      <mat-card-header>
+        <mat-card-title>Flashcards</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (flashcards().length === 0) {
+          <p>No flashcards available.</p>
+        } @else {
+          <p class="card-counter" data-testid="flashcard-counter">
+            Card {{ flashcardIndex() + 1 }} of {{ flashcards().length }}
+          </p>
+
+          <div class="flashcard" data-testid="flashcard">
+            @if (!flipped()) {
+              <p class="flashcard-face" data-testid="flashcard-front">
+                {{ currentFlashcard()?.front }}
+              </p>
+            } @else {
+              <p class="flashcard-face flashcard-back" data-testid="flashcard-back">
+                {{ currentFlashcard()?.back }}
+              </p>
+            }
+          </div>
+
+          <div class="flashcard-controls">
+            <button
+              mat-stroked-button
+              data-testid="prev-card-btn"
+              [disabled]="flashcardIndex() === 0"
+              (click)="onPrevCard()"
+            >
+              <mat-icon>chevron_left</mat-icon>
+              Previous
+            </button>
+
+            <button mat-flat-button color="primary" data-testid="flip-btn" (click)="onFlip()">
+              {{ flipped() ? 'Show Front' : 'Flip' }}
+            </button>
+
+            <button
+              mat-stroked-button
+              data-testid="next-card-btn"
+              [disabled]="flashcardIndex() === flashcards().length - 1"
+              (click)="onNextCard()"
+            >
+              Next
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- ── quiz ───────────────────────────────────────────────────────── -->
+    <mat-card appearance="outlined" class="section-card">
+      <mat-card-header>
+        <mat-card-title>Practice Quiz</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (questions().length === 0) {
+          <p>No quiz questions available.</p>
+        } @else {
+          <p class="question-counter" data-testid="question-counter">
+            Question {{ questionIndex() + 1 }} of {{ questions().length }}
+          </p>
+
+          <mat-progress-bar mode="determinate" [value]="progressPct()" data-testid="progress-bar" />
+
+          <p class="question-text" data-testid="question-text">
+            {{ currentQuestion()?.question_text }}
+          </p>
+
+          <div class="answer-options" data-testid="answer-options">
+            <input
+              type="text"
+              placeholder="Type your answer"
+              [value]="selectedAnswer() ?? ''"
+              (input)="onSelectAnswer($any($event.target).value)"
+              [disabled]="submitted()"
+              data-testid="answer-input"
+            />
+          </div>
+
+          <div class="quiz-controls">
+            <button
+              mat-stroked-button
+              data-testid="prev-question-btn"
+              [disabled]="questionIndex() === 0"
+              (click)="onPrevQuestion()"
+            >
+              <mat-icon>chevron_left</mat-icon>
+              Previous
+            </button>
+            <button
+              mat-flat-button
+              color="primary"
+              data-testid="check-answer-btn"
+              (click)="onCheckAnswer()"
+              [disabled]="submitted() || !selectedAnswer()"
+            >
+              Check Answer
+            </button>
+            @if (submitted()) {
+              @if (isCorrect()) {
+                <p class="correct-banner" data-testid="correct-banner">Correct!</p>
+              } @else {
+                <p class="incorrect-banner" data-testid="incorrect-banner">
+                  Incorrect — the correct answer was: {{ currentQuestion().answer }}
+                </p>
+              }
+
+              <button
+                mat-stroked-button
+                data-testid="next-after-submit-btn"
+                (click)="onNextQuestion()"
+              >
+                Next Question
+              </button>
+            }
+            <button
+              mat-flat-button
+              color="primary"
+              data-testid="next-question-btn"
+              [disabled]="questionIndex() === questions().length - 1"
+              (click)="onNextQuestion()"
+            >
+              Next
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+        }
+
+        @if (questionIndex() === questions().length - 1 && submitted()) {
+          <div class="summary" data-testid="summary-screen">
+            <h3>Score: {{ score() }} / {{ questions().length }}</h3>
+
+            @if (wrongTopics().length > 0) {
+              <p>Topics to revisit:</p>
+              <ul>
+                @for (t of wrongTopics(); track t) {
+                  <li>{{ t }}</li>
+                }
+              </ul>
+            }
+
+            <button mat-flat-button color="primary" data-testid="retake-btn" (click)="onRetake()">
+              Retake
+            </button>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+  </div>
+}

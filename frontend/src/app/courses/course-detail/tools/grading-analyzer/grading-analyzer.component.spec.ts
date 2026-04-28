@@ -255,7 +255,7 @@ describe('GradingAnalyzer', () => {
     expect(component['uploadSuccess']()).toBe(true);
   });
 
-  it('should route to exam history after upload from student tool pages', async () => {
+  it('should route to student dashboard after upload from student tool pages', async () => {
     const { fixture, router } = await setup({ routePath: 'student/tools/grading-analyzer' });
     const component = fixture.componentInstance;
 
@@ -264,7 +264,7 @@ describe('GradingAnalyzer', () => {
 
     await component['onSubmit']();
 
-    expect(router.navigate).toHaveBeenCalledWith(['/courses', 3, 'student', 'exam-history'], {
+    expect(router.navigate).toHaveBeenCalledWith(['/courses', 3, 'student'], {
       queryParams: { uploadId: 42 },
     });
   });

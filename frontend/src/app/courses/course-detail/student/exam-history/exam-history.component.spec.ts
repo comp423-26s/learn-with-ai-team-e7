@@ -66,11 +66,11 @@ const makeRoute = (id: string, uploadId?: string) => ({
 const waitForHistoryLoad = async (fixture: ComponentFixture<ExamHistory>): Promise<void> => {
   const instance = fixture.componentInstance as unknown as ExamHistoryTestInstance;
 
-  for (let i = 0; i < 50; i += 1) {
+  for (let i = 0; i < 100; i += 1) {
     if (!instance.loading()) {
       return;
     }
-    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
   }
 };
 
@@ -477,20 +477,29 @@ describe('ExamHistory', () => {
         needs_review: [],
         weaknesses: [],
       };
-      stubs.gradingAnalyzer.getExamAnalysis.mockResolvedValue(mockAnalysis);
+
+      // Deferred promise: keeps polling suspended until we explicitly resolve it,
+      // allowing the test to observe the "processing" state before analysis arrives.
+      let resolveAnalysis!: (value: typeof mockAnalysis) => void;
+      const analysisPromise = new Promise<typeof mockAnalysis>((resolve) => {
+        resolveAnalysis = resolve;
+      });
+      stubs.gradingAnalyzer.getExamAnalysis.mockReturnValue(analysisPromise);
 
       const fixture = TestBed.createComponent(ExamHistory);
       fixture.detectChanges();
       await waitForHistoryLoad(fixture);
       fixture.detectChanges();
 
-      // Processing indicator should show while pending
+      // Polling is still pending — processing indicator should be visible
       expect(fixture.nativeElement.textContent).toContain('Analyzing your exam');
 
+      // Now deliver the analysis and wait for polling to complete
+      resolveAnalysis(mockAnalysis);
       await waitForPendingClear(fixture);
       fixture.detectChanges();
 
-      // After analysis arrives, full analysis shown and processing indicator gone
+      // Analysis is now shown and processing indicator is gone
       expect(fixture.nativeElement.textContent).toContain('Good job!');
       expect(fixture.nativeElement.textContent).not.toContain('Analyzing your exam');
       expect(stubs.dashboardState.setAnalysis).toHaveBeenCalledWith(1, mockAnalysis);

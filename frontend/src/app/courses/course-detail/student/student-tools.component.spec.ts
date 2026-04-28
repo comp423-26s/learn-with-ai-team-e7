@@ -33,5 +33,6 @@ describe('StudentTools', () => {
     expect(mockPageTitle.setTitle).toHaveBeenCalledWith('Student Tools');
     expect(fixture.nativeElement.textContent).toContain('Grading Analyzer');
     expect(fixture.nativeElement.textContent).toContain('My Exam History');
+    expect(fixture.nativeElement.textContent).toContain('Generate Practice Materials');
   });
 });

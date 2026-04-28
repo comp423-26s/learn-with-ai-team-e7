@@ -4,36 +4,39 @@
  */
 
 import { Component, ChangeDetectionStrategy, inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { DatePipe, PercentPipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { DatePipe } from '@angular/common';
 import { PageTitleService } from '../../../../page-title.service';
 import { LayoutNavigationService } from '../../../../layout/layout-navigation.service';
+import { GradingAnalyzerService } from '../../tools/grading-analyzer.service';
+import { AuthService } from '../../../../auth.service';
+import { StudentDashboardStateService } from '../student-dashboard-state.service';
 import { Api } from '../../../../api/generated/api';
-import { ExamPdfHistoryItem } from '../../../../api/generated/models';
+import type { ExamPdfHistoryItem } from '../../../../api/generated/models';
+import type { ExamAnalysisSummary } from '../../../../api/generated/models/exam-analysis-summary';
 
-/** Student view showing their exam PDF upload history. */
+interface ExamHistoryEntry {
+  upload: ExamPdfHistoryItem;
+  analysis: ExamAnalysisSummary | null;
+}
+
+/** Student view showing their exam PDF upload history with inline analysis summaries. */
 @Component({
   selector: 'app-exam-history',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
   imports: [
-    CommonModule,
     RouterLink,
     MatCardModule,
-    MatTableModule,
     MatButtonModule,
     MatIconModule,
-    MatTooltipModule,
     MatProgressBarModule,
     DatePipe,
+    PercentPipe,
   ],
   templateUrl: './exam-history.component.html',
   styleUrl: './exam-history.component.scss',
@@ -43,26 +46,32 @@ export class ExamHistory {
   private layoutNavigation = inject(LayoutNavigationService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private snackBar = inject(MatSnackBar);
   private api = inject(Api);
+  private gradingAnalyzerService = inject(GradingAnalyzerService);
+  private authService = inject(AuthService);
+  private dashboardState = inject(StudentDashboardStateService);
 
+  protected readonly user = this.authService.user;
   protected readonly courseId: number;
-  protected readonly uploads = signal<ExamPdfHistoryItem[]>([]);
+  protected readonly entries = signal<ExamHistoryEntry[]>([]);
   protected readonly loading = signal(true);
   protected readonly errorMessage = signal('');
-  protected readonly displayedColumns = ['filename', 'uploadDate', 'analysis', 'practice'];
+  protected readonly pendingUploadId = signal<number | null>(null);
 
-  protected readonly hasUploads = computed(() => this.uploads().length > 0);
+  protected readonly hasEntries = computed(() => this.entries().length > 0);
+
+  private readonly newUploadId: number | null;
 
   constructor() {
     this.layoutNavigation.clearContext();
     this.titleService.setTitle('My Exam History');
     this.courseId = Number(this.route.parent?.parent?.snapshot.paramMap.get('id'));
-    this.loadHistory();
+    const param = this.route.snapshot.queryParamMap.get('uploadId');
+    this.newUploadId = param !== null ? Number(param) : null;
+    void this.loadHistory();
   }
 
   protected navigateToGradingAnalyzer(): void {
-    // Navigate to grading analyzer to upload a new exam
     void this.router.navigate(['courses', this.courseId, 'student', 'tools', 'grading-analyzer']);
   }
 
@@ -76,15 +85,65 @@ export class ExamHistory {
     try {
       const { listExamPdfUploads } =
         await import('../../../../api/generated/fn/exam-pd-fs/list-exam-pdf-uploads');
-      const items = await this.api.invoke(listExamPdfUploads, {
+      const uploads: ExamPdfHistoryItem[] = await this.api.invoke(listExamPdfUploads, {
         course_id: this.courseId,
       });
-      this.uploads.set(items);
+
+      const entries = await Promise.all(
+        uploads.map(async (upload): Promise<ExamHistoryEntry> => {
+          if (upload.has_analysis) {
+            const analysis = await this.gradingAnalyzerService.getExamAnalysis(
+              this.courseId,
+              upload.id,
+            );
+            return { upload, analysis };
+          }
+          return { upload, analysis: null };
+        }),
+      );
+
+      this.entries.set(entries);
+
+      // If navigated here after a new upload, start background polling for its analysis.
+      const pending = this.newUploadId;
+      if (pending !== null && Number.isFinite(pending)) {
+        const pendingEntry = entries.find((e) => e.upload.id === pending);
+        if (pendingEntry && !pendingEntry.upload.has_analysis) {
+          this.pendingUploadId.set(pending);
+          void this.pollEntryForAnalysis(pending);
+        }
+      }
     } catch (error) {
       console.error('Failed to load exam history:', error);
       this.errorMessage.set('Failed to load your exam history. Please try again.');
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private async pollEntryForAnalysis(
+    uploadId: number,
+    intervalMs = 2000,
+    maxAttempts = 30,
+  ): Promise<void> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const analysis = await this.gradingAnalyzerService.getExamAnalysis(this.courseId, uploadId);
+      if (analysis !== null) {
+        this.entries.update((current) =>
+          current.map((e) =>
+            e.upload.id === uploadId
+              ? { upload: { ...e.upload, has_analysis: true }, analysis }
+              : e,
+          ),
+        );
+        this.dashboardState.setAnalysis(this.courseId, analysis);
+        this.pendingUploadId.set(null);
+        return;
+      }
+      if (attempt < maxAttempts - 1) {
+        await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+      }
+    }
+    this.pendingUploadId.set(null);
   }
 }

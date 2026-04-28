@@ -106,7 +106,7 @@ export class GradingAnalyzer {
         'student/tools/grading-analyzer',
       );
       const target = isStudentToolPath
-        ? ['/courses', this.courseId, 'student', 'tools', 'grading-analyzer', 'results']
+        ? ['/courses', this.courseId, 'student', 'exam-history']
         : ['/courses', this.courseId, 'tools', 'grading-analyzer', 'results'];
       const navigated = await this.router.navigate(target, {
         queryParams: { uploadId: result.uploadId },

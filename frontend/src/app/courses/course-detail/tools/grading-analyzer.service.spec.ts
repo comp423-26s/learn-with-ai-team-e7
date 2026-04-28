@@ -82,4 +82,78 @@ describe('GradingAnalyzerService', () => {
 
     expect(result).toBeNull();
   });
+
+  it('getLatestAnalysis returns the most recent analysis when one exists', async () => {
+    api.invoke
+      .mockResolvedValueOnce([
+        {
+          id: 7,
+          has_analysis: false,
+          has_practice: false,
+          original_filename: 'old.pdf',
+          uploaded_at: '',
+        },
+        {
+          id: 8,
+          has_analysis: true,
+          has_practice: false,
+          original_filename: 'exam.pdf',
+          uploaded_at: '',
+        },
+      ])
+      .mockResolvedValueOnce({
+        analysis_data: {
+          headline: 'Well done!',
+          overall_score_pct: 0.8,
+          strengths: [
+            {
+              label: 'Algebra (strong)',
+              topic: 'Algebra',
+              performance: 'strong',
+              average_score_pct: 0.85,
+            },
+          ],
+          weaknesses: [],
+          needs_review: [],
+        },
+      });
+
+    const result = await service.getLatestAnalysis(1);
+
+    expect(result?.headline).toBe('Well done!');
+    expect(result?.strengths[0].topic).toBe('Algebra');
+  });
+
+  it('getLatestAnalysis returns null when no upload has an analysis', async () => {
+    api.invoke.mockResolvedValueOnce([
+      {
+        id: 5,
+        has_analysis: false,
+        has_practice: false,
+        original_filename: 'exam.pdf',
+        uploaded_at: '',
+      },
+    ]);
+
+    const result = await service.getLatestAnalysis(1);
+
+    expect(result).toBeNull();
+    expect(api.invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('getLatestAnalysis returns null when the history list is empty', async () => {
+    api.invoke.mockResolvedValueOnce([]);
+
+    const result = await service.getLatestAnalysis(1);
+
+    expect(result).toBeNull();
+  });
+
+  it('getLatestAnalysis returns null when the API call throws', async () => {
+    api.invoke.mockRejectedValueOnce(new Error('network error'));
+
+    const result = await service.getLatestAnalysis(1);
+
+    expect(result).toBeNull();
+  });
 });

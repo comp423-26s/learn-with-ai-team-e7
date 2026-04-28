@@ -77,6 +77,50 @@
       </mat-card>
     </div>
 
+    @if (analysisLoading()) {
+      <mat-card appearance="outlined" aria-label="Exam analysis loading">
+        <mat-card-content class="p-4">
+          <p class="mb-2 text-sm text-slate-600">Analyzing your exam — this may take a moment…</p>
+          <mat-progress-bar mode="indeterminate" aria-label="Processing exam analysis" />
+        </mat-card-content>
+      </mat-card>
+    }
+
+    @if (examAnalysis()) {
+      <mat-card appearance="outlined" aria-label="Latest exam analysis">
+        <mat-card-header>
+          <mat-card-title>Latest Exam Analysis</mat-card-title>
+          @if (examAnalysis()!.headline) {
+            <mat-card-subtitle>{{ examAnalysis()!.headline }}</mat-card-subtitle>
+          }
+        </mat-card-header>
+        <mat-card-content>
+          @if (examAnalysisTopics().length === 0) {
+            <p class="text-sm opacity-75">No topic data available in this analysis.</p>
+          } @else {
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left">
+                  <th class="pb-2 font-medium">Topic</th>
+                  <th class="pb-2 font-medium">Performance</th>
+                  <th class="pb-2 font-medium">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (topic of examAnalysisTopics(); track topic.topic) {
+                  <tr>
+                    <td class="py-1">{{ topic.topic }}</td>
+                    <td class="py-1">{{ topic.performance }}</td>
+                    <td class="py-1">{{ (topic.average_score_pct * 100).toFixed(1) }}%</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </mat-card-content>
+      </mat-card>
+    }
+
     <div class="grid gap-4 lg:grid-cols-2">
       <mat-card appearance="outlined" aria-label="Strength topics">
         <mat-card-header>

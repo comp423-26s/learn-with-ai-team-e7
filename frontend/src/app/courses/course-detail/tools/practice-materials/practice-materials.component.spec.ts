@@ -90,6 +90,40 @@ describe('PracticeMaterialsComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Missing or invalid upload ID.');
   });
 
+  it('should fall back to NaN course id when route has no id param', async () => {
+    const practiceServiceMock = {
+      getPractice: vi.fn().mockRejectedValue(new Error('fail')),
+    };
+    const mockRoute = {
+      snapshot: {
+        queryParamMap: convertToParamMap({ uploadId: '22' }),
+        paramMap: convertToParamMap({}),
+      },
+      parent: {
+        snapshot: { paramMap: convertToParamMap({}) },
+        parent: null,
+      },
+    };
+
+    TestBed.configureTestingModule({
+      imports: [PracticeMaterialsComponent, NoopAnimationsModule],
+      providers: [
+        provideRouter([]),
+        { provide: PracticeService, useValue: practiceServiceMock },
+        { provide: PageTitleService, useValue: { setTitle: vi.fn() } },
+        { provide: ActivatedRoute, useValue: mockRoute },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(PracticeMaterialsComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    expect(component['courseId']).toBeNaN();
+  });
+
   it('should show error when getPractice fails', async () => {
     const { fixture } = await setup({
       extraProviders: [
@@ -244,28 +278,33 @@ describe('PracticeMaterialsComponent', () => {
       ).toContain('Question 1 of 2');
     });
 
-    it('should render all four answer options', async () => {
+    it('should render the text answer input field', async () => {
       const { fixture } = await setup();
       const el: HTMLElement = fixture.nativeElement;
-      expect(el.querySelector('[data-testid="answer-A"]')).not.toBeNull();
-      expect(el.querySelector('[data-testid="answer-B"]')).not.toBeNull();
-      expect(el.querySelector('[data-testid="answer-C"]')).not.toBeNull();
-      expect(el.querySelector('[data-testid="answer-D"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="answer-input"]')).not.toBeNull();
     });
 
-    it('should mark selected answer', async () => {
+    it('should update selectedAnswer when user provides text input', async () => {
       const { fixture } = await setup();
       const component = fixture.componentInstance;
 
-      component['onSelectAnswer']('B');
+      component['onSelectAnswer']('42');
       fixture.detectChanges();
 
-      expect(component['selectedAnswer']()).toBe('B');
-      expect(
-        fixture.nativeElement
-          .querySelector('[data-testid="answer-B"]')
-          ?.classList.contains('selected'),
-      ).toBe(true);
+      expect(component['selectedAnswer']()).toBe('42');
+    });
+
+    it('should update selectedAnswer via input event on the text field', async () => {
+      const { fixture } = await setup();
+
+      const input: HTMLInputElement = fixture.nativeElement.querySelector(
+        '[data-testid="answer-input"]',
+      );
+      input.value = 'my answer';
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance['selectedAnswer']()).toBe('my answer');
     });
 
     it('should navigate to next question and clear selection', async () => {
@@ -351,6 +390,183 @@ describe('PracticeMaterialsComponent', () => {
       const { fixture } = await setup({ materials: { ...STUB_MATERIALS, questions: [] } });
       const component = fixture.componentInstance;
       expect(component['progressPct']()).toBe(0);
+    });
+
+    it('should check correct answer and mark as correct', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['onSelectAnswer']('4');
+      component['onCheckAnswer']();
+      fixture.detectChanges();
+
+      expect(component['isCorrect']()).toBe(true);
+      expect(component['submitted']()).toBe(true);
+      expect(component['score']()).toBe(1);
+      expect(fixture.nativeElement.querySelector('[data-testid="correct-banner"]')).not.toBeNull();
+    });
+
+    it('should check incorrect answer and mark as wrong', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['onSelectAnswer']('999');
+      component['onCheckAnswer']();
+      fixture.detectChanges();
+
+      expect(component['isCorrect']()).toBe(false);
+      expect(component['submitted']()).toBe(true);
+      expect(component['score']()).toBe(0);
+      expect(component['wrongTopics']()).toContain('Math');
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="incorrect-banner"]'),
+      ).not.toBeNull();
+    });
+
+    it('should not check answer when nothing selected', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['onCheckAnswer']();
+
+      expect(component['submitted']()).toBe(false);
+    });
+
+    it('should not check answer when already submitted', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['onSelectAnswer']('4');
+      component['onCheckAnswer']();
+      const scoreBefore = component['score']();
+      component['onCheckAnswer']();
+
+      expect(component['score']()).toBe(scoreBefore);
+    });
+
+    it('should show summary screen on last question after submission', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['questionIndex'].set(1);
+      component['onSelectAnswer']('Paris');
+      component['onCheckAnswer']();
+      fixture.detectChanges();
+
+      expect(component['showSummary']()).toBe(true);
+      expect(fixture.nativeElement.querySelector('[data-testid="summary-screen"]')).not.toBeNull();
+    });
+
+    it('should show wrong topics in summary when answers were wrong', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['questionIndex'].set(1);
+      component['onSelectAnswer']('WRONG');
+      component['onCheckAnswer']();
+      fixture.detectChanges();
+
+      const summary: HTMLElement = fixture.nativeElement.querySelector(
+        '[data-testid="summary-screen"]',
+      );
+      expect(summary.textContent).toContain('Topics to revisit');
+      expect(summary.textContent).toContain('Geography');
+    });
+
+    it('should retake the quiz and reset all state', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['questionIndex'].set(1);
+      component['onSelectAnswer']('WRONG');
+      component['onCheckAnswer']();
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="retake-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['questionIndex']()).toBe(0);
+      expect(component['selectedAnswer']()).toBeNull();
+      expect(component['submitted']()).toBe(false);
+      expect(component['isCorrect']()).toBeNull();
+      expect(component['score']()).toBe(0);
+      expect(component['wrongTopics']()).toEqual([]);
+    });
+
+    it('should click check-answer button to submit answer', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['onSelectAnswer']('4');
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="check-answer-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['submitted']()).toBe(true);
+    });
+
+    it('should click prev-question button to go back', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['questionIndex'].set(1);
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="prev-question-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['questionIndex']()).toBe(0);
+    });
+
+    it('should click next-question button to advance', async () => {
+      const { fixture } = await setup();
+
+      fixture.nativeElement.querySelector('[data-testid="next-question-btn"]').click();
+      fixture.detectChanges();
+
+      const component = fixture.componentInstance;
+      expect(component['questionIndex']()).toBe(1);
+    });
+
+    it('should click next-after-submit button to advance after submission', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['onSelectAnswer']('4');
+      component['onCheckAnswer']();
+      fixture.detectChanges();
+
+      fixture.nativeElement.querySelector('[data-testid="next-after-submit-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['questionIndex']()).toBe(1);
+    });
+  });
+
+  describe('Flashcards (edge cases)', () => {
+    it('should click flip button to flip card', async () => {
+      const { fixture } = await setup();
+      fixture.nativeElement.querySelector('[data-testid="flip-btn"]').click();
+      fixture.detectChanges();
+      expect(fixture.componentInstance['flipped']()).toBe(true);
+    });
+
+    it('should click prev-card button to go back', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+      component['flashcardIndex'].set(1);
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector('[data-testid="prev-card-btn"]').click();
+      fixture.detectChanges();
+      expect(component['flashcardIndex']()).toBe(0);
+    });
+
+    it('should click next-card button to advance', async () => {
+      const { fixture } = await setup();
+      fixture.nativeElement.querySelector('[data-testid="next-card-btn"]').click();
+      fixture.detectChanges();
+      expect(fixture.componentInstance['flashcardIndex']()).toBe(1);
     });
   });
 });

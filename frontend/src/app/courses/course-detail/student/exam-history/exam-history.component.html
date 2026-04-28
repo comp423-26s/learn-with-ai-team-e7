@@ -5,110 +5,156 @@
 
 @if (loading()) {
   <mat-progress-bar mode="indeterminate" aria-label="Loading exam history" />
+} @else if (errorMessage()) {
+  <p role="alert" class="error-message">{{ errorMessage() }}</p>
 } @else {
-  @if (errorMessage()) {
-    <div role="alert" class="alert alert-error mb-4">
-      {{ errorMessage() }}
+  @if (user(); as u) {
+    <div class="student-banner" role="region" aria-label="Student information">
+      <mat-icon aria-hidden="true">person</mat-icon>
+      <span class="student-name">{{ u.given_name }} {{ u.family_name }}</span>
+      <span class="student-detail">Onyen: {{ u.onyen }}</span>
+      <span class="student-detail">PID: {{ u.pid }}</span>
     </div>
+  }
+
+  @if (hasEntries()) {
+    <ul class="entries-list" aria-label="Exam upload history">
+      @for (entry of entries(); track entry.upload.id) {
+        <li>
+          <mat-card appearance="outlined" class="entry-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar>description</mat-icon>
+              <mat-card-title>{{ entry.upload.original_filename }}</mat-card-title>
+              <mat-card-subtitle>
+                Uploaded {{ entry.upload.uploaded_at | date: 'mediumDate' }}
+              </mat-card-subtitle>
+            </mat-card-header>
+
+            <mat-card-content>
+              @if (entry.analysis) {
+                <p class="entry-headline">{{ entry.analysis.headline }}</p>
+                <p class="entry-score">
+                  Overall score:
+                  <strong>{{ entry.analysis.overall_score_pct | percent: '1.0-0' }}</strong>
+                </p>
+
+                @if (entry.analysis.strengths.length > 0) {
+                  <div
+                    class="topic-section"
+                    aria-label="Strengths for {{ entry.upload.original_filename }}"
+                  >
+                    <h4 class="topic-section-label">Strengths:</h4>
+                    <ul class="topic-list">
+                      @for (t of entry.analysis.strengths; track t.topic) {
+                        <li class="topic-item topic-item--strength">
+                          <span class="topic-name">{{ t.topic }}</span>
+                          <span class="topic-score">
+                            {{ t.average_score_pct | percent: '1.0-0' }}
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (entry.analysis.needs_review.length > 0) {
+                  <div
+                    class="topic-section"
+                    aria-label="Needs review for {{ entry.upload.original_filename }}"
+                  >
+                    <h4 class="topic-section-label">Needs Review:</h4>
+                    <ul class="topic-list">
+                      @for (t of entry.analysis.needs_review; track t.topic) {
+                        <li class="topic-item topic-item--needs-review">
+                          <span class="topic-name">{{ t.topic }}</span>
+                          <span class="topic-score">
+                            {{ t.average_score_pct | percent: '1.0-0' }}
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (entry.analysis.weaknesses.length > 0) {
+                  <div
+                    class="topic-section"
+                    aria-label="Weaknesses for {{ entry.upload.original_filename }}"
+                  >
+                    <h4 class="topic-section-label">Weaknesses:</h4>
+                    <ul class="topic-list">
+                      @for (t of entry.analysis.weaknesses; track t.topic) {
+                        <li class="topic-item topic-item--weakness">
+                          <span class="topic-name">{{ t.topic }}</span>
+                          <span class="topic-score">
+                            {{ t.average_score_pct | percent: '1.0-0' }}
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+              } @else if (pendingUploadId() === entry.upload.id) {
+                <mat-progress-bar mode="indeterminate" aria-label="Analyzing exam, please wait" />
+                <p class="analysis-processing">Analyzing your exam, please wait&hellip;</p>
+              } @else {
+                <p class="no-analysis">Analysis not yet available for this exam.</p>
+              }
+            </mat-card-content>
+
+            <mat-card-actions>
+              @if (entry.upload.has_analysis) {
+                <a
+                  mat-button
+                  [routerLink]="[
+                    '/courses',
+                    courseId,
+                    'student',
+                    'tools',
+                    'grading-analyzer',
+                    'results',
+                  ]"
+                  [queryParams]="{ uploadId: entry.upload.id }"
+                  aria-label="View full analysis for {{ entry.upload.original_filename }}"
+                >
+                  <mat-icon>analytics</mat-icon>
+                  View Analysis
+                </a>
+              }
+              @if (entry.upload.has_practice) {
+                <a
+                  mat-button
+                  [routerLink]="[
+                    '/courses',
+                    courseId,
+                    'student',
+                    'tools',
+                    'grading-analyzer',
+                    'practice',
+                  ]"
+                  [queryParams]="{ uploadId: entry.upload.id }"
+                  aria-label="View practice materials for {{ entry.upload.original_filename }}"
+                >
+                  <mat-icon>quiz</mat-icon>
+                  Practice Materials
+                </a>
+              }
+            </mat-card-actions>
+          </mat-card>
+        </li>
+      }
+    </ul>
   } @else {
-    @if (hasUploads()) {
-      <mat-card appearance="outlined">
-        <mat-card-header>
-          <mat-card-title>Your Exam Uploads</mat-card-title>
-          <mat-card-subtitle
-            >View your previously uploaded exams and their analyses</mat-card-subtitle
-          >
-        </mat-card-header>
-        <mat-card-content>
-          <table mat-table [dataSource]="uploads()" class="w-full">
-            <!-- Filename Column -->
-            <ng-container matColumnDef="filename">
-              <th mat-header-cell *matHeaderCellDef>File</th>
-              <td mat-cell *matCellDef="let element">{{ element.original_filename }}</td>
-            </ng-container>
-
-            <!-- Upload Date Column -->
-            <ng-container matColumnDef="uploadDate">
-              <th mat-header-cell *matHeaderCellDef>Uploaded</th>
-              <td mat-cell *matCellDef="let element">{{ element.uploaded_at | date: 'short' }}</td>
-            </ng-container>
-
-            <!-- Analysis Column -->
-            <ng-container matColumnDef="analysis">
-              <th mat-header-cell *matHeaderCellDef>Analysis</th>
-              <td mat-cell *matCellDef="let element">
-                @if (element.has_analysis) {
-                  <a
-                    [routerLink]="[
-                      '/courses',
-                      courseId,
-                      'student',
-                      'tools',
-                      'grading-analyzer',
-                      'results',
-                    ]"
-                    [queryParams]="{ uploadId: element.id }"
-                    class="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
-                  >
-                    View Analysis
-                    <mat-icon class="text-base">open_in_new</mat-icon>
-                  </a>
-                } @else {
-                  <span class="text-gray-400">Not available</span>
-                }
-              </td>
-            </ng-container>
-
-            <!-- Practice Column -->
-            <ng-container matColumnDef="practice">
-              <th mat-header-cell *matHeaderCellDef>Practice Materials</th>
-              <td mat-cell *matCellDef="let element">
-                @if (element.has_practice) {
-                  <a
-                    [routerLink]="[
-                      '/courses',
-                      courseId,
-                      'student',
-                      'tools',
-                      'grading-analyzer',
-                      'practice',
-                    ]"
-                    [queryParams]="{ uploadId: element.id }"
-                    class="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
-                  >
-                    View Practice
-                    <mat-icon class="text-base">open_in_new</mat-icon>
-                  </a>
-                } @else {
-                  <button mat-button disabled [matTooltip]="'Generate practice materials first'">
-                    Generate Practice
-                  </button>
-                }
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let element; columns: displayedColumns"></tr>
-          </table>
-        </mat-card-content>
-      </mat-card>
-    } @else {
-      <mat-card appearance="outlined" class="text-center">
-        <mat-card-content class="py-12">
-          <mat-icon class="mb-4 text-6xl text-gray-300">insert_drive_file</mat-icon>
-          <h3 class="mb-2 text-xl font-semibold">You haven't uploaded any exams yet.</h3>
-          <p class="mb-6 text-gray-600">
-            Upload your first exam to get AI-powered feedback on your performance.
-          </p>
-          <a
-            routerLink="grading-analyzer"
-            class="inline-flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-          >
-            <mat-icon>upload_file</mat-icon>
-            Open Grading Analyzer
-          </a>
-        </mat-card-content>
-      </mat-card>
-    }
+    <mat-card appearance="outlined" class="empty-state-card">
+      <mat-card-content class="empty-state">
+        <mat-icon class="empty-icon" aria-hidden="true">insert_drive_file</mat-icon>
+        <h3>You haven't uploaded any exams yet.</h3>
+        <p>Upload your first exam to get AI-powered feedback on your performance.</p>
+        <button mat-flat-button (click)="navigateToGradingAnalyzer()">
+          <mat-icon>upload_file</mat-icon>
+          Open Grading Analyzer
+        </button>
+      </mat-card-content>
+    </mat-card>
   }
 }

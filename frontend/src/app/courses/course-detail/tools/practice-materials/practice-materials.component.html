@@ -35,11 +35,11 @@
           <div class="flashcard" data-testid="flashcard">
             @if (!flipped()) {
               <p class="flashcard-face" data-testid="flashcard-front">
-                {{ currentFlashcard()?.front }}
+                {{ currentFlashcard().front }}
               </p>
             } @else {
               <p class="flashcard-face flashcard-back" data-testid="flashcard-back">
-                {{ currentFlashcard()?.back }}
+                {{ currentFlashcard().back }}
               </p>
             }
           </div>
@@ -89,7 +89,7 @@
           <mat-progress-bar mode="determinate" [value]="progressPct()" data-testid="progress-bar" />
 
           <p class="question-text" data-testid="question-text">
-            {{ currentQuestion()?.question_text }}
+            {{ currentQuestion().question_text }}
           </p>
 
           <div class="answer-options" data-testid="answer-options">

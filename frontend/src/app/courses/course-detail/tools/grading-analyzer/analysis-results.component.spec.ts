@@ -40,6 +40,7 @@ describe('AnalysisResultsComponent', () => {
       uploadId?: string | null;
       analysis?: ExamAnalysisSummary | null;
       includeRouteId?: boolean;
+      pathFromRoot?: { routeConfig?: { path: string } }[];
       extraProviders?: Provider[];
     } = {},
   ) {
@@ -56,6 +57,7 @@ describe('AnalysisResultsComponent', () => {
       snapshot: {
         queryParamMap: convertToParamMap(queryParams),
         paramMap: convertToParamMap({}),
+        pathFromRoot: options.pathFromRoot ?? [],
       },
       parent: {
         snapshot: {
@@ -308,6 +310,49 @@ describe('AnalysisResultsComponent', () => {
       fixture.detectChanges();
 
       expect(component['practiceError']()).toContain('Please refresh');
+    });
+
+    it('should do nothing when uploadId is null', async () => {
+      const { providers, practiceServiceMock } = defaultPracticeProviders();
+      const { fixture } = await setup({ extraProviders: providers });
+      const component = fixture.componentInstance;
+
+      // Force uploadId back to null (ngOnInit sets it from route params)
+      component['uploadId'].set(null);
+      await component['onGeneratePractice']();
+
+      expect(practiceServiceMock.generatePractice).not.toHaveBeenCalled();
+    });
+
+    it('should navigate to student practice path when on student route', async () => {
+      const { routerMock, providers } = defaultPracticeProviders();
+      const { fixture } = await setup({
+        extraProviders: providers,
+        pathFromRoot: [{ routeConfig: { path: 'student' } }, { routeConfig: undefined }],
+      });
+      const component = fixture.componentInstance;
+
+      component['uploadId'].set(42);
+      await component['onGeneratePractice']();
+
+      expect(routerMock.navigate).toHaveBeenCalledWith(
+        expect.arrayContaining(['student', 'tools', 'grading-analyzer', 'practice']),
+        expect.objectContaining({ queryParams: { uploadId: 42 } }),
+      );
+    });
+
+    it('should throw and set error when poll times out', async () => {
+      const { providers } = defaultPracticeProviders({
+        getPractice: vi.fn().mockResolvedValue({ id: null }),
+      });
+      const { fixture } = await setup({ extraProviders: providers });
+      const component = fixture.componentInstance;
+
+      component['loading'].set(false);
+      component['uploadId'].set(42);
+
+      // Call pollUntilComplete directly with maxAttempts=1, intervalMs=0 to trigger timeout
+      await expect(component['pollUntilComplete'](42, 0, 1)).rejects.toThrow('Timed out');
     });
   });
 });

@@ -140,16 +140,22 @@ export class StudentView {
     if (uploadId !== null && Number.isFinite(uploadId) && uploadId > 0) {
       this.analysisLoading.set(true);
       const analysis = await this.pollForAnalysis(courseId, uploadId);
-      this.dashboardState.setAnalysis(courseId, analysis);
+      if (analysis !== null) {
+        this.dashboardState.setAnalysis(courseId, analysis);
+      }
       this.applyAnalysis(analysis);
       this.analysisLoading.set(false);
     } else {
       const cached = this.dashboardState.getAnalysis(courseId);
-      if (cached !== undefined) {
+      if (cached) {
+        // Use the cached analysis (set by exam-history polling or a prior fetch)
         this.applyAnalysis(cached);
       } else {
+        // No cache yet — fetch from backend; only cache when we get real data
         const analysis = await this.gradingAnalyzerService.getLatestAnalysis(courseId);
-        this.dashboardState.setAnalysis(courseId, analysis);
+        if (analysis !== null) {
+          this.dashboardState.setAnalysis(courseId, analysis);
+        }
         this.applyAnalysis(analysis);
       }
     }

@@ -65,14 +65,14 @@ export class ExamHistory {
   constructor() {
     this.layoutNavigation.clearContext();
     this.titleService.setTitle('My Exam History');
-    this.courseId = Number(this.route.parent?.parent?.snapshot.paramMap.get('id'));
+    this.courseId = Number(this.route.parent?.snapshot.paramMap.get('id'));
     const param = this.route.snapshot.queryParamMap.get('uploadId');
     this.newUploadId = param !== null ? Number(param) : null;
     void this.loadHistory();
   }
 
   protected navigateToGradingAnalyzer(): void {
-    void this.router.navigate(['courses', this.courseId, 'student', 'tools', 'grading-analyzer']);
+    void this.router.navigate(['/courses', this.courseId, 'student', 'tools', 'grading-analyzer']);
   }
 
   private async loadHistory(): Promise<void> {

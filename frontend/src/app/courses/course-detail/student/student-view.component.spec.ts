@@ -764,4 +764,99 @@ describe('StudentView', () => {
     const stateService = TestBed.inject(StudentDashboardStateService);
     expect(stateService.getAnalysis(1)).toEqual(networkAnalysis);
   });
+
+  it('should not store null in state service when getLatestAnalysis returns null', async () => {
+    const mockPageTitle = { setTitle: vi.fn() };
+    const mockLayoutNavigation = { clearContext: vi.fn() };
+    const mockActivityService = {
+      list: vi.fn(() => Promise.resolve([])),
+      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
+    };
+    const mockRoute = {
+      snapshot: { queryParamMap: new Map() },
+      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
+    };
+    const mockGradingAnalyzerService = {
+      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
+      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
+    };
+
+    TestBed.configureTestingModule({
+      imports: [StudentView],
+      providers: [
+        { provide: PageTitleService, useValue: mockPageTitle },
+        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
+        { provide: ActivityService, useValue: mockActivityService },
+        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
+        { provide: ActivatedRoute, useValue: mockRoute },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(StudentView);
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    // null must NOT be cached — the next visit should still attempt a network fetch
+    const stateService = TestBed.inject(StudentDashboardStateService);
+    expect(stateService.getAnalysis(1)).toBeUndefined();
+  });
+
+  it('should use cached analysis from state service when set externally (e.g. by exam-history)', async () => {
+    const mockPageTitle = { setTitle: vi.fn() };
+    const mockLayoutNavigation = { clearContext: vi.fn() };
+    const mockActivityService = {
+      list: vi.fn(() => Promise.resolve([])),
+      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
+    };
+    const mockRoute = {
+      snapshot: { queryParamMap: new Map() },
+      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
+    };
+    const examHistoryAnalysis = {
+      headline: 'Set by exam history!',
+      overall_score_pct: 0.82,
+      strengths: [
+        {
+          label: 'Physics (strong)',
+          topic: 'Physics',
+          performance: 'strong' as const,
+          average_score_pct: 0.82,
+        },
+      ],
+      needs_review: [] as never[],
+      weaknesses: [] as never[],
+    };
+    const mockGradingAnalyzerService = {
+      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
+      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
+    };
+
+    TestBed.configureTestingModule({
+      imports: [StudentView],
+      providers: [
+        { provide: PageTitleService, useValue: mockPageTitle },
+        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
+        { provide: ActivityService, useValue: mockActivityService },
+        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
+        { provide: ActivatedRoute, useValue: mockRoute },
+      ],
+    });
+
+    // Simulate exam-history setting the cache after polling completes
+    const stateService = TestBed.inject(StudentDashboardStateService);
+    stateService.setAnalysis(1, examHistoryAnalysis);
+
+    const fixture = TestBed.createComponent(StudentView);
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect(mockGradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Set by exam history!');
+  });
 });

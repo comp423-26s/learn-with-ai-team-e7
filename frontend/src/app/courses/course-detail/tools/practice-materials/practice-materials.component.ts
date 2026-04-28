@@ -47,13 +47,13 @@ export class PracticeMaterialsComponent implements OnInit {
   protected readonly flashcardIndex = signal(0);
   protected readonly flipped = signal(false);
   protected readonly currentFlashcard = computed(
-    () => this.flashcards()[this.flashcardIndex()] ?? null,
+    (): Flashcard => this.flashcards()[this.flashcardIndex()],
   );
 
   // ── quiz state ────────────────────────────────────────────────────────────
   protected readonly questionIndex = signal(0);
   protected readonly currentQuestion = computed(
-    () => this.questions()[this.questionIndex()] ?? null,
+    (): PracticeQuestion => this.questions()[this.questionIndex()],
   );
   protected readonly selectedAnswer = signal<string | null>(null);
   protected readonly progressPct = computed(() => {
@@ -158,7 +158,6 @@ export class PracticeMaterialsComponent implements OnInit {
     if (!this.selectedAnswer() || this.submitted()) return;
 
     const question = this.currentQuestion();
-    if (!question) return;
 
     const correct = question.answer.trim().toLowerCase();
     const selected = this.selectedAnswer()!.trim().toLowerCase();

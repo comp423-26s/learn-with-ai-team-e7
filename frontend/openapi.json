@@ -1342,7 +1342,7 @@
           "Exam PDFs"
         ],
         "summary": "Upload an exam PDF",
-        "description": "Validates and stores an uploaded exam PDF.\n\nArgs:\n    subject: Authenticated user uploading the file.\n    course: Course loaded via path dependency.\n    exam_pdf_svc: Service handling authorization and persistence.\n    file: Uploaded PDF from multipart form-data.\n\nReturns:\n    Stored upload metadata including storage key.\n\nRaises:\n    HTTPException: If validation fails or storage encounters an error.",
+        "description": "Validates and stores an uploaded exam PDF.\n\nExam analysis is enqueued as an asynchronous job. The response includes\njob tracking information so the client can poll for completion.\n\nArgs:\n    subject: Authenticated user uploading the file.\n    course: Course loaded via path dependency.\n    exam_pdf_svc: Service handling authorization and persistence.\n    async_job_repo: Repository for loading async job information.\n    file: Uploaded PDF from multipart form-data.\n\nReturns:\n    Stored upload metadata including storage key and async job info.\n\nRaises:\n    HTTPException: If validation fails or storage encounters an error.",
         "operationId": "upload_exam_pdf",
         "security": [
           {
@@ -1371,8 +1371,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "The stored upload metadata and storage key.",
+          "202": {
+            "description": "The accepted upload with async job tracking information.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3240,6 +3240,16 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AsyncJobInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -3254,7 +3264,7 @@
           "created_at"
         ],
         "title": "ExamPdfUploadResponse",
-        "description": "Response returned when a PDF upload is stored successfully."
+        "description": "Response returned when a PDF upload is stored successfully.\n\nIncludes async job information so the client can poll for analysis completion."
       },
       "Flashcard": {
         "properties": {

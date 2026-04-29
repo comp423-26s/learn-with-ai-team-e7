@@ -11,6 +11,7 @@ from learnwithai.services.exam_pdf_service import ExamPdfService
 from pydantic import ValidationError
 
 from ..di import (
+    AsyncJobRepositoryDI,
     AuthenticatedUserDI,
     CourseByCourseIDPathDI,
     ExamAnalysisServiceDI,
@@ -19,7 +20,7 @@ from ..di import (
     MembershipRepositoryDI,
     PracticeMaterialRepositoryDI,
 )
-from ..models import ExamPdfAnalysisResponse, ExamPdfHistoryItem, ExamPdfUploadResponse
+from ..models import AsyncJobInfo, ExamPdfAnalysisResponse, ExamPdfHistoryItem, ExamPdfUploadResponse
 
 MAX_PDF_BYTES = 50 * 1024 * 1024
 logger = logging.getLogger(__name__)
@@ -30,9 +31,9 @@ router = APIRouter(prefix="/courses/{course_id}/exam-pdfs", tags=["Exam PDFs"])
 @router.post(
     "",
     response_model=ExamPdfUploadResponse,
-    status_code=201,
+    status_code=202,
     summary="Upload an exam PDF",
-    response_description="The stored upload metadata and storage key.",
+    response_description="The accepted upload with async job tracking information.",
     responses={
         400: {"description": "Invalid file."},
         401: {"description": "Not authenticated."},
@@ -45,18 +46,23 @@ async def upload_exam_pdf(
     subject: AuthenticatedUserDI,
     course: CourseByCourseIDPathDI,
     exam_pdf_svc: ExamPdfServiceDI,
+    async_job_repo: AsyncJobRepositoryDI,
     file: Annotated[UploadFile, File()],
 ) -> ExamPdfUploadResponse:
     """Validates and stores an uploaded exam PDF.
+
+    Exam analysis is enqueued as an asynchronous job. The response includes
+    job tracking information so the client can poll for completion.
 
     Args:
         subject: Authenticated user uploading the file.
         course: Course loaded via path dependency.
         exam_pdf_svc: Service handling authorization and persistence.
+        async_job_repo: Repository for loading async job information.
         file: Uploaded PDF from multipart form-data.
 
     Returns:
-        Stored upload metadata including storage key.
+        Stored upload metadata including storage key and async job info.
 
     Raises:
         HTTPException: If validation fails or storage encounters an error.
@@ -70,6 +76,24 @@ async def upload_exam_pdf(
 
     upload = _store_pdf(exam_pdf_svc, subject, course, file.filename or "upload.pdf", pdf_bytes)
     assert upload.id is not None
+    assert course.id is not None
+
+    # Get async job info if one was created
+    async_job_info: AsyncJobInfo | None = None
+    if upload.id is not None:  # pragma: no branch
+        # Query for the most recent async job for this upload
+        # The service should have created one during upload_pdf()
+        async_jobs = async_job_repo.list_by_course_and_kind(course.id, "exam_analysis")
+        # Find the one with matching upload_id in input_data
+        for async_job in async_jobs:
+            if async_job.input_data.get("upload_id") == upload.id:
+                async_job_info = AsyncJobInfo(
+                    id=async_job.id,  # type: ignore[arg-type]
+                    status=async_job.status,
+                    completed_at=async_job.completed_at,
+                )
+                break
+
     return ExamPdfUploadResponse(
         id=upload.id,
         course_id=upload.course_id,
@@ -79,6 +103,7 @@ async def upload_exam_pdf(
         content_type=upload.content_type,
         size_bytes=upload.size_bytes,
         created_at=upload.created_at,
+        job=async_job_info,
     )
 
 

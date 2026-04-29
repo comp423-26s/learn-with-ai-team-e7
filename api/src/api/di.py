@@ -427,11 +427,12 @@ def exam_pdf_service_factory(
     membership_repo: MembershipRepositoryDI,
     object_storage: ObjectStorageDI,
     exam_pdf_text_repo: ExamPdfTextRepositoryDI,
-    exam_analysis_service: ExamAnalysisServiceDI,
+    async_job_repo: AsyncJobRepositoryDI,
+    job_queue: JobQueueDI,
 ) -> ExamPdfService:
     """Creates the exam PDF service for the current request."""
     return ExamPdfService(
-        exam_pdf_upload_repo, membership_repo, object_storage, exam_pdf_text_repo, exam_analysis_service
+        exam_pdf_upload_repo, membership_repo, object_storage, exam_pdf_text_repo, async_job_repo, job_queue
     )
 
 

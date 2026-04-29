@@ -5,7 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from learnwithai.errors import AuthorizationError
-from learnwithai.interfaces import ObjectStorage
+from learnwithai.interfaces import JobQueue, ObjectStorage
+from learnwithai.repositories.async_job_repository import AsyncJobRepository
 from learnwithai.repositories.exam_pdf_text_repository import ExamPdfTextRepository
 from learnwithai.repositories.exam_pdf_upload_repository import ExamPdfUploadRepository
 from learnwithai.repositories.membership_repository import MembershipRepository
@@ -21,6 +22,8 @@ def _build_service(
     membership_repo: MembershipRepository | None = None,
     object_storage: ObjectStorage | None = None,
     exam_pdf_text_repo: ExamPdfTextRepository | None = None,
+    async_job_repo: AsyncJobRepository | None = None,
+    job_queue: JobQueue | None = None,
 ) -> ExamPdfService:
     if exam_pdf_upload_repo is None:
         exam_pdf_upload_repo = MagicMock(spec=ExamPdfUploadRepository)
@@ -30,13 +33,17 @@ def _build_service(
         object_storage = MagicMock(spec=ObjectStorage)
     if exam_pdf_text_repo is None:
         exam_pdf_text_repo = MagicMock(spec=ExamPdfTextRepository)
-    exam_analysis_service = MagicMock()
+    if async_job_repo is None:
+        async_job_repo = MagicMock(spec=AsyncJobRepository)
+    if job_queue is None:
+        job_queue = MagicMock(spec=JobQueue)
     return ExamPdfService(
         exam_pdf_upload_repo,
         membership_repo,
         object_storage,
         exam_pdf_text_repo,
-        exam_analysis_service,
+        async_job_repo,
+        job_queue,
     )
 
 

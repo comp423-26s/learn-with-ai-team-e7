@@ -10,6 +10,7 @@ uv run --package learnwithai-jobqueue dramatiq learnwithai_jobqueue.worker
 import logging
 
 import learnwithai.practice_material.job  # noqa: F401
+import learnwithai.services.exam_analysis_job  # noqa: F401
 
 import learnwithai_jobqueue.dramatiq_job_queue  # noqa: F401
 

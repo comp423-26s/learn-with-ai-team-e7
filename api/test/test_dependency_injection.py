@@ -189,18 +189,18 @@ def test_practice_material_service_factory_returns_service() -> None:
     assert isinstance(result, PracticeMaterialService)
 
 
-def test_object_storage_factory_raises_without_bucket() -> None:
+def test_object_storage_factory_returns_noop_without_bucket() -> None:
+    from learnwithai.services.s3_object_storage import NoopObjectStorage
+
     settings = MagicMock()
     settings.storage_s3_bucket = None
     settings.storage_s3_region = "us-east-1"
     settings.storage_s3_endpoint = None
     settings.storage_s3_key_prefix = ""
-    settings.is_development = False
 
-    with pytest.raises(HTTPException) as exc_info:
-        object_storage_factory(settings)
+    result = object_storage_factory(settings)
 
-    assert exc_info.value.status_code == 500
+    assert isinstance(result, NoopObjectStorage)
 
 
 def test_object_storage_factory_returns_noop_without_bucket_in_development() -> None:

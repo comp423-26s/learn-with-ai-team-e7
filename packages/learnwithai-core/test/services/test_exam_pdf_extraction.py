@@ -57,9 +57,10 @@ def _setup(upload_id: int | None = 22):
 
     object_storage = MagicMock()
     text_repo = MagicMock()
-    analysis_service = MagicMock()
+    async_job_repo = MagicMock()
+    job_queue = MagicMock()
 
-    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, analysis_service)
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, async_job_repo, job_queue)
     return service, text_repo
 
 
@@ -144,15 +145,15 @@ def test_ocr_failure_and_empty_still_persists_fallback_analysis():
 
     repo.create.assert_not_called()
 
-    analysis_mock = service._exam_analysis_service.analyze_from_text
-    assert isinstance(analysis_mock, MagicMock)
-    analysis_mock.assert_called_once_with("")
+    # With async job enqueueing, analysis is no longer run synchronously
+    # Instead, verify that the service attempted to enqueue a job
+    job_queue_mock = service._job_queue
+    assert isinstance(job_queue_mock, MagicMock)
+    job_queue_mock.enqueue.assert_called_once()
 
-    update_mock = service._exam_pdf_upload_repo.update
-    assert isinstance(update_mock, MagicMock)
-    update_mock.assert_called_once_with(upload)
-
-    assert upload.analysis_data is not None
+    # Verify the upload was persisted
+    assert upload is not None
+    assert upload.id == 22
 
 
 def test_upload_id_none_and_persistence_exception_paths():
@@ -168,7 +169,7 @@ def test_upload_id_none_and_persistence_exception_paths():
 
 
 def test_extract_text_ocr_runs_when_typed_text_is_short() -> None:
-    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     with patch.object(service, "_extract_text_from_pdf", wraps=service._extract_text_from_pdf):
         sys.modules.pop("pdfminer.high_level", None)
@@ -193,7 +194,7 @@ def test_extract_text_ocr_runs_when_typed_text_is_short() -> None:
 
 
 def test_extract_text_ocr_skipped_when_typed_text_is_long() -> None:
-    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     sys.modules.pop("pdfminer.high_level", None)
     pdfminer_mod: Any = ModuleType("pdfminer.high_level")
@@ -206,7 +207,7 @@ def test_extract_text_ocr_skipped_when_typed_text_is_long() -> None:
 
 
 def test_extract_text_returns_empty_when_ocr_yields_whitespace() -> None:
-    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     sys.modules.pop("pdfminer.high_level", None)
     sys.modules.pop("pytesseract", None)
@@ -230,7 +231,7 @@ def test_extract_text_returns_empty_when_ocr_yields_whitespace() -> None:
 
 
 def test_extract_text_returns_empty_when_ocr_deps_unavailable() -> None:
-    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    service = ExamPdfService(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     sys.modules.pop("pdfminer.high_level", None)
     sys.modules.pop("pytesseract", None)
@@ -254,19 +255,18 @@ def test_upload_persists_analysis_data_when_analysis_succeeds() -> None:
 
     object_storage = MagicMock()
     text_repo = MagicMock()
+    async_job_repo = MagicMock()
+    job_queue = MagicMock()
 
-    analysis_service = MagicMock()
-    analysis_service.analyze_from_text.return_value = MagicMock(
-        model_dump=MagicMock(return_value={"strengths": ["Algebra"]})
-    )
-
-    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, analysis_service)
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, async_job_repo, job_queue)
     service._extract_text_from_pdf = MagicMock(return_value="Question 1: ...")
 
     upload = service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF")
 
-    assert upload.analysis_data == {"strengths": ["Algebra"]}
-    upload_repo.update.assert_called_once_with(upload)
+    # With async job enqueueing, the upload is returned immediately without analysis data
+    assert upload.id == 22
+    # Verify that the job was enqueued
+    job_queue.enqueue.assert_called_once()
 
 
 def test_upload_still_succeeds_when_analysis_fails() -> None:
@@ -279,14 +279,16 @@ def test_upload_still_succeeds_when_analysis_fails() -> None:
     object_storage = MagicMock()
     text_repo = MagicMock()
 
-    analysis_service = MagicMock()
-    analysis_service.analyze_from_text.side_effect = RuntimeError("analysis failed")
+    # Simulate job queue that fails to enqueue
+    job_queue = MagicMock()
+    job_queue.enqueue.side_effect = RuntimeError("queue failed")
 
-    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, analysis_service)
+    async_job_repo = MagicMock()
+
+    service = ExamPdfService(upload_repo, membership_repo, object_storage, text_repo, async_job_repo, job_queue)
     service._extract_text_from_pdf = MagicMock(return_value="Question 1: ...")
 
     upload = service.upload_pdf(_make_user(), _make_course(), "exam.pdf", b"%PDF")
 
+    # Upload still succeeds even if job enqueueing fails
     assert upload.id == 22
-    assert upload.analysis_data is None
-    upload_repo.update.assert_not_called()

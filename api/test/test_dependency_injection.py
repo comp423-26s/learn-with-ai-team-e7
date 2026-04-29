@@ -159,7 +159,7 @@ def test_roster_upload_service_factory_returns_service() -> None:
 def test_exam_pdf_service_factory_returns_service() -> None:
     from learnwithai.services.exam_pdf_service import ExamPdfService
 
-    result = exam_pdf_service_factory(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    result = exam_pdf_service_factory(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
     assert isinstance(result, ExamPdfService)
 

@@ -56,7 +56,7 @@ type ExamHistoryTestInstance = {
 
 const makeRoute = (id: string, uploadId?: string) => ({
   parent: {
-    parent: { snapshot: { paramMap: new Map([['id', id]]) } },
+    snapshot: { paramMap: new Map([['id', id]]) },
   },
   snapshot: {
     queryParamMap: new Map(uploadId !== undefined ? [['uploadId', uploadId]] : []),
@@ -421,7 +421,7 @@ describe('ExamHistory', () => {
       fixture.detectChanges();
 
       expect(mockRouter.navigate).toHaveBeenCalledWith([
-        'courses',
+        '/courses',
         1,
         'student',
         'tools',
@@ -440,7 +440,7 @@ describe('ExamHistory', () => {
       (fixture.componentInstance as unknown as ExamHistoryTestInstance).navigateToGradingAnalyzer();
 
       expect(mockRouter.navigate).toHaveBeenCalledWith([
-        'courses',
+        '/courses',
         1,
         'student',
         'tools',
@@ -584,6 +584,38 @@ describe('ExamHistory', () => {
       // getExamAnalysis should not have been called (no has_analysis uploads, no polling)
       expect(stubs.gradingAnalyzer.getExamAnalysis).not.toHaveBeenCalled();
     });
+
+    it('should skip sleep on final poll attempt when analysis not found', async () => {
+      const stubs = await configureModule('1', undefined, '1');
+      const uploads: ExamPdfHistoryItem[] = [
+        {
+          id: 1,
+          original_filename: 'new-exam.pdf',
+          uploaded_at: '2026-04-28T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+      ];
+      stubs.api.invoke.mockResolvedValue(uploads);
+      stubs.gradingAnalyzer.getExamAnalysis.mockResolvedValue(null); // Never finds analysis
+
+      const fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      const instance = fixture.componentInstance as unknown as ExamHistoryTestInstance;
+      // Reset call count after initial load
+      stubs.gradingAnalyzer.getExamAnalysis.mockClear();
+
+      // Poll with 2 attempts and 1ms interval - on last attempt, skip should occur
+      await instance.pollEntryForAnalysis(1, 1, 2);
+      fixture.detectChanges();
+
+      // Should have called getExamAnalysis twice (maxAttempts=2)
+      expect(stubs.gradingAnalyzer.getExamAnalysis).toHaveBeenCalledTimes(2);
+      expect(instance.pendingUploadId()).toBeNull();
+    });
   });
 
   describe('with an invalid course id', () => {
@@ -594,6 +626,22 @@ describe('ExamHistory', () => {
     });
 
     it('should show an error when course id cannot be parsed', async () => {
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Failed to determine');
+    });
+
+    it('should show an error when route parent is undefined', async () => {
+      // When parent route doesn't exist, route.parent is undefined
+      const stubs = await configureModule('not-a-number');
+      const route = { parent: undefined, snapshot: { queryParamMap: new Map() } };
+      TestBed.overrideProvider(ActivatedRoute, { useValue: route });
+
+      stubs.api.invoke.mockResolvedValue([]);
+
       fixture = TestBed.createComponent(ExamHistory);
       fixture.detectChanges();
       await waitForHistoryLoad(fixture);

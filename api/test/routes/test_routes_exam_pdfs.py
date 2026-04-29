@@ -11,7 +11,6 @@ from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
 from learnwithai.errors import AuthorizationError
 from learnwithai.models.exam_analysis import ExamAnalysisSummary, TopicSummaryLine
-from learnwithai.tables.exam_pdf_upload import ExamPdfUpload
 from starlette.datastructures import Headers
 
 from api.di import exam_pdf_service_factory, get_authenticated_user, get_course_by_path_id
@@ -88,7 +87,7 @@ def _make_upload_file(
 
 
 def _stub_upload_record(record_id: int = 22, course_id: int = 1, uploader_pid: int = 123456789) -> MagicMock:
-    mock = MagicMock(spec=ExamPdfUpload)
+    mock = MagicMock()
     mock.id = record_id
     mock.course_id = course_id
     mock.uploader_pid = uploader_pid
@@ -101,15 +100,31 @@ def _stub_upload_record(record_id: int = 22, course_id: int = 1, uploader_pid: i
     return mock
 
 
+def _stub_async_job(job_id: int, upload_id: int, status: str = "pending") -> MagicMock:
+    mock = MagicMock()
+    mock.id = job_id
+    mock.status = status
+    mock.completed_at = None
+    mock.input_data = {"upload_id": upload_id}
+    return mock
+
+
+# ---------------------------------------------------------------------------
+# upload_exam_pdf
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.anyio
 async def test_upload_exam_pdf_returns_success_response() -> None:
     subject = _stub_user()
     course = _stub_course()
     exam_pdf_svc = MagicMock()
     exam_pdf_svc.upload_pdf.return_value = _stub_upload_record()
+    async_job_repo = MagicMock()
+    async_job_repo.list_by_course_and_kind.return_value = []
     file = _make_upload_file()
 
-    result = await upload_exam_pdf(subject, course, exam_pdf_svc, file)
+    result = await upload_exam_pdf(subject, course, exam_pdf_svc, async_job_repo, file)
 
     assert isinstance(result, ExamPdfUploadResponse)
     assert result.id == 22
@@ -117,23 +132,65 @@ async def test_upload_exam_pdf_returns_success_response() -> None:
     exam_pdf_svc.upload_pdf.assert_called_once()
 
 
+@pytest.mark.anyio
+async def test_upload_exam_pdf_populates_job_info_when_matching_async_job_exists() -> None:
+    # Lines 89-95: the loop body executes and breaks with a matching job.
+    upload = _stub_upload_record(record_id=22)
+    exam_pdf_svc = MagicMock()
+    exam_pdf_svc.upload_pdf.return_value = upload
+    async_job_repo = MagicMock()
+    async_job_repo.list_by_course_and_kind.return_value = [
+        _stub_async_job(job_id=7, upload_id=999),  # non-matching job skipped
+        _stub_async_job(job_id=8, upload_id=22, status="pending"),  # matching job
+    ]
+
+    result = await upload_exam_pdf(_stub_user(), _stub_course(), exam_pdf_svc, async_job_repo, _make_upload_file())
+
+    assert result.job is not None
+    assert result.job.id == 8
+    assert result.job.status == "pending"
+    assert result.job.completed_at is None
+
+
+@pytest.mark.anyio
+async def test_upload_exam_pdf_job_info_is_none_when_no_job_matches_upload_id() -> None:
+    # Line 83→97: the loop exhausts without breaking because no job references this upload.
+    upload = _stub_upload_record(record_id=22)
+    exam_pdf_svc = MagicMock()
+    exam_pdf_svc.upload_pdf.return_value = upload
+    async_job_repo = MagicMock()
+    async_job_repo.list_by_course_and_kind.return_value = [
+        _stub_async_job(job_id=1, upload_id=999),
+        _stub_async_job(job_id=2, upload_id=888),
+    ]
+
+    result = await upload_exam_pdf(_stub_user(), _stub_course(), exam_pdf_svc, async_job_repo, _make_upload_file())
+
+    assert result.job is None
+
+
 @pytest.mark.integration
 def test_upload_exam_pdf_accepts_multipart_request(client: TestClient) -> None:
+    from api.di import async_job_repository_factory
+
     subject = _stub_user()
     course = _stub_course()
     exam_pdf_svc = MagicMock()
     exam_pdf_svc.upload_pdf.return_value = _stub_upload_record()
+    async_job_repo = MagicMock()
+    async_job_repo.list_by_course_and_kind.return_value = []
 
     app.dependency_overrides[get_authenticated_user] = lambda: subject
     app.dependency_overrides[get_course_by_path_id] = lambda: course
     app.dependency_overrides[exam_pdf_service_factory] = lambda: exam_pdf_svc
+    app.dependency_overrides[async_job_repository_factory] = lambda: async_job_repo
 
     response = client.post(
         "/api/courses/1/exam-pdfs",
         files={"file": ("exam.pdf", b"%PDF-1.7\n%hello", "application/pdf")},
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
     assert response.json()["id"] == 22
     exam_pdf_svc.upload_pdf.assert_called_once()
 
@@ -143,10 +200,11 @@ async def test_upload_exam_pdf_rejects_non_pdf_content_type() -> None:
     subject = _stub_user()
     course = _stub_course()
     exam_pdf_svc = MagicMock()
+    async_job_repo = MagicMock()
     file = _make_upload_file(content_type="text/plain")
 
     with pytest.raises(HTTPException) as exc_info:
-        await upload_exam_pdf(subject, course, exam_pdf_svc, file)
+        await upload_exam_pdf(subject, course, exam_pdf_svc, async_job_repo, file)
 
     assert exc_info.value.status_code == 400
 
@@ -156,10 +214,11 @@ async def test_upload_exam_pdf_rejects_missing_pdf_extension() -> None:
     subject = _stub_user()
     course = _stub_course()
     exam_pdf_svc = MagicMock()
+    async_job_repo = MagicMock()
     file = _make_upload_file(filename="exam.txt")
 
     with pytest.raises(HTTPException) as exc_info:
-        await upload_exam_pdf(subject, course, exam_pdf_svc, file)
+        await upload_exam_pdf(subject, course, exam_pdf_svc, async_job_repo, file)
 
     assert exc_info.value.status_code == 400
 
@@ -169,10 +228,11 @@ async def test_upload_exam_pdf_rejects_invalid_signature() -> None:
     subject = _stub_user()
     course = _stub_course()
     exam_pdf_svc = MagicMock()
+    async_job_repo = MagicMock()
     file = _make_upload_file(content=b"NOT_PDF")
 
     with pytest.raises(HTTPException) as exc_info:
-        await upload_exam_pdf(subject, course, exam_pdf_svc, file)
+        await upload_exam_pdf(subject, course, exam_pdf_svc, async_job_repo, file)
 
     assert exc_info.value.status_code == 400
 
@@ -182,11 +242,12 @@ async def test_upload_exam_pdf_rejects_oversized_file(monkeypatch: pytest.Monkey
     subject = _stub_user()
     course = _stub_course()
     exam_pdf_svc = MagicMock()
+    async_job_repo = MagicMock()
     monkeypatch.setattr(exam_pdfs, "MAX_PDF_BYTES", 8)
     file = _make_upload_file(content=b"%PDF-123456789")
 
     with pytest.raises(HTTPException) as exc_info:
-        await upload_exam_pdf(subject, course, exam_pdf_svc, file)
+        await upload_exam_pdf(subject, course, exam_pdf_svc, async_job_repo, file)
 
     assert exc_info.value.status_code == 400
 
@@ -196,11 +257,12 @@ async def test_upload_exam_pdf_maps_storage_failure_to_500() -> None:
     subject = _stub_user()
     course = _stub_course()
     exam_pdf_svc = MagicMock()
+    async_job_repo = MagicMock()
     exam_pdf_svc.upload_pdf.side_effect = RuntimeError("boom")
     file = _make_upload_file()
 
     with pytest.raises(HTTPException) as exc_info:
-        await upload_exam_pdf(subject, course, exam_pdf_svc, file)
+        await upload_exam_pdf(subject, course, exam_pdf_svc, async_job_repo, file)
 
     assert exc_info.value.status_code == 500
 
@@ -210,11 +272,17 @@ async def test_upload_exam_pdf_propagates_authorization_error() -> None:
     subject = _stub_user()
     course = _stub_course()
     exam_pdf_svc = MagicMock()
+    async_job_repo = MagicMock()
     exam_pdf_svc.upload_pdf.side_effect = AuthorizationError("Not enrolled in this course")
     file = _make_upload_file()
 
     with pytest.raises(AuthorizationError):
-        await upload_exam_pdf(subject, course, exam_pdf_svc, file)
+        await upload_exam_pdf(subject, course, exam_pdf_svc, async_job_repo, file)
+
+
+# ---------------------------------------------------------------------------
+# get_exam_analysis
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.anyio
@@ -319,6 +387,11 @@ async def test_get_exam_analysis_returns_404_for_mismatched_course() -> None:
     assert exc_info.value.status_code == 404
 
 
+# ---------------------------------------------------------------------------
+# list_exam_pdf_uploads
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.anyio
 async def test_list_exam_pdf_uploads_returns_all_uploads_for_student() -> None:
     subject = _stub_user(pid=123456789)
@@ -328,7 +401,6 @@ async def test_list_exam_pdf_uploads_returns_all_uploads_for_student() -> None:
     membership_repo = MagicMock()
     membership_repo.get_by_user_and_course.return_value = MagicMock()
 
-    # Create mock uploads with different timestamps
     upload1 = _stub_upload_record(record_id=1, course_id=1, uploader_pid=123456789)
     upload1.created_at = datetime(2026, 4, 10, tzinfo=timezone.utc)
     upload1.analysis_data = {"strengths": ["Algebra"]}
@@ -339,7 +411,6 @@ async def test_list_exam_pdf_uploads_returns_all_uploads_for_student() -> None:
 
     upload_repo.list_by_student_and_course.return_value = [upload2, upload1]  # Newest first
 
-    # Mock practice materials
     pm1 = MagicMock()
     pm1.upload_id = 2
     practice_repo.list_by_student_and_course.return_value = [pm1]

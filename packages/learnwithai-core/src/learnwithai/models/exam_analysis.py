@@ -9,7 +9,18 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..interfaces import TrackedJob
+
 PerformanceLabel = Literal["strong", "needs_review", "weak"]
+
+# Async job constants and models
+EXAM_ANALYSIS_KIND = "exam_analysis"
+
+
+class ExamAnalysisJobInput(BaseModel):
+    """Input payload for exam analysis background job."""
+
+    upload_id: int = Field(gt=0)
 
 
 class QuestionPerformanceInput(BaseModel):
@@ -65,3 +76,9 @@ class ExamAnalysisSummary(BaseModel):
     needs_review: list[TopicSummaryLine]
     headline: str
     overall_score_pct: float
+
+
+class ExamAnalysisJob(TrackedJob):
+    """Async job for exam analysis background processing."""
+
+    type: Literal["exam_analysis"] = "exam_analysis"

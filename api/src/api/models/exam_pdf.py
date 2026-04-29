@@ -5,11 +5,22 @@ from datetime import datetime
 from learnwithai.models.exam_analysis import ExamAnalysisSummary
 from pydantic import BaseModel
 
-__all__ = ["ExamAnalysisSummary", "ExamPdfAnalysisResponse", "ExamPdfHistoryItem", "ExamPdfUploadResponse"]
+from .async_job import AsyncJobInfo
+
+__all__ = [
+    "AsyncJobInfo",
+    "ExamAnalysisSummary",
+    "ExamPdfAnalysisResponse",
+    "ExamPdfHistoryItem",
+    "ExamPdfUploadResponse",
+]
 
 
 class ExamPdfUploadResponse(BaseModel):
-    """Response returned when a PDF upload is stored successfully."""
+    """Response returned when a PDF upload is stored successfully.
+
+    Includes async job information so the client can poll for analysis completion.
+    """
 
     id: int
     course_id: int
@@ -19,6 +30,7 @@ class ExamPdfUploadResponse(BaseModel):
     content_type: str
     size_bytes: int
     created_at: datetime
+    job: AsyncJobInfo | None = None
 
 
 class ExamPdfAnalysisResponse(BaseModel):

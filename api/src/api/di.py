@@ -278,11 +278,14 @@ JobQueueDI: TypeAlias = Annotated[JobQueue, Depends(job_queue_factory)]
 
 
 def object_storage_factory(settings: SettingsDI) -> ObjectStorage:
-    """Creates an object storage adapter from application settings."""
+    """Creates an object storage adapter from application settings.
+
+    When S3 is not configured, uses NoopObjectStorage which allows PDF uploads
+    and analysis to work without PDF archival. PDFs are processed and discarded
+    after text extraction and analysis.
+    """
     if not settings.storage_s3_bucket:
-        if settings.is_development:
-            return NoopObjectStorage()
-        raise HTTPException(status_code=500, detail="S3 storage is not configured.")
+        return NoopObjectStorage()
     return S3ObjectStorage(
         bucket=settings.storage_s3_bucket,
         region=settings.storage_s3_region,

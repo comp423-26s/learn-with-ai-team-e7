@@ -192,16 +192,22 @@ def test_lifespan_context_skips_consumer_in_test_environment(
 def test_lifespan_context_ensures_exam_pdf_schema_on_startup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    called = False
-
     async def fake_consume_job_updates(*_args: object, **_kwargs: object) -> None:
         return None
 
+    create_db_and_tables_called = False
+    ensure_exam_pdf_upload_analysis_column_called = False
+
+    def fake_create_db_and_tables() -> None:
+        nonlocal create_db_and_tables_called
+        create_db_and_tables_called = True
+
     def fake_ensure_exam_pdf_upload_analysis_column() -> None:
-        nonlocal called
-        called = True
+        nonlocal ensure_exam_pdf_upload_analysis_column_called
+        ensure_exam_pdf_upload_analysis_column_called = True
 
     monkeypatch.setattr(lifespan_module, "consume_job_updates", fake_consume_job_updates)
+    monkeypatch.setattr(lifespan_module, "create_db_and_tables", fake_create_db_and_tables)
     monkeypatch.setattr(
         lifespan_module, "ensure_exam_pdf_upload_analysis_column", fake_ensure_exam_pdf_upload_analysis_column
     )
@@ -223,7 +229,8 @@ def test_lifespan_context_ensures_exam_pdf_schema_on_startup(
 
     asyncio.run(exercise())
 
-    assert called is True
+    assert create_db_and_tables_called is True
+    assert ensure_exam_pdf_upload_analysis_column_called is True
 
 
 def test_lifespan_context_starts_and_cancels_consumer_in_non_test_environment(

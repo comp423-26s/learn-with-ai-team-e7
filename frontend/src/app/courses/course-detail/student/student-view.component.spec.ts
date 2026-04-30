@@ -3,860 +3,284 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { signal, type Signal, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
-import { StudentView } from './student-view.component';
 import { PageTitleService } from '../../../page-title.service';
+import { JobUpdateService, type JobUpdate } from '../../../job-update.service';
 import { LayoutNavigationService } from '../../../layout/layout-navigation.service';
-import { ActivityService } from '../activities/activity.service';
 import { GradingAnalyzerService } from '../tools/grading-analyzer.service';
 import { StudentDashboardStateService } from './student-dashboard-state.service';
+import { StudentView, POLL_CONFIG } from './student-view.component';
+import type { ExamAnalysisSummary } from '../../../api/generated/models/exam-analysis-summary';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve));
 
+type SetupOptions = {
+  courseId?: string | null;
+  uploadId?: string | null;
+  latestAnalysis?: ExamAnalysisSummary | null;
+  pollAnalysis?: ExamAnalysisSummary | null;
+  cachedAnalysis?: ExamAnalysisSummary | null;
+};
+
 describe('StudentView', () => {
-  it('should set the page title and render student analysis sections', async () => {
-    const mockPageTitle = {
-      setTitle: vi.fn(),
+  async function setup(options: SetupOptions = {}) {
+    const pageTitle = { setTitle: vi.fn() };
+    const layoutNavigation = { clearContext: vi.fn() };
+
+    const gradingAnalyzerService = {
+      getLatestAnalysis: vi.fn(() => Promise.resolve(options.latestAnalysis ?? null)),
+      getExamAnalysis: vi.fn(() => Promise.resolve(options.pollAnalysis ?? null)),
     };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() =>
-        Promise.resolve([
-          {
-            id: 10,
-            title: 'Dependency Injection',
-            type: 'iyow',
-            course_id: 1,
-            release_date: '2026-01-01T00:00:00Z',
-            due_date: '2026-01-02T00:00:00Z',
-            late_date: null,
-            created_at: '2026-01-01T00:00:00Z',
-            active_submission_count: null,
-          },
-          {
-            id: 11,
-            title: 'Routing',
-            type: 'iyow',
-            course_id: 1,
-            release_date: '2026-01-01T00:00:00Z',
-            due_date: '2026-01-02T00:00:00Z',
-            late_date: null,
-            created_at: '2026-01-01T00:00:00Z',
-            active_submission_count: null,
-          },
-        ]),
-      ),
-      getActiveSubmission: vi.fn((_: number, activityId: number) =>
-        Promise.resolve(
-          activityId === 10
-            ? {
-                id: 1,
-                activity_id: 10,
-                student_pid: 111111111,
-                is_active: true,
-                submitted_at: '2026-01-03T00:00:00Z',
-                response_text: 'A response',
-                feedback: 'Nice work',
-                job: null,
-              }
-            : null,
-        ),
+
+    const updatesSignal: WritableSignal<ReadonlyMap<number, JobUpdate>> = signal(new Map());
+    const jobUpdateService = {
+      subscribe: vi.fn(),
+      unsubscribe: vi.fn(),
+      updatesForCourse: vi.fn(
+        () => updatesSignal.asReadonly() as Signal<ReadonlyMap<number, JobUpdate>>,
       ),
     };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
 
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
+    const route = {
+      snapshot: {
+        queryParamMap: new Map(options.uploadId != null ? [['uploadId', options.uploadId]] : []),
+      },
+      parent:
+        options.courseId === null
+          ? null
+          : { snapshot: { paramMap: new Map([['id', options.courseId ?? '1']]) } },
     };
 
     TestBed.configureTestingModule({
       imports: [StudentView],
       providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
+        { provide: PageTitleService, useValue: pageTitle },
+        { provide: LayoutNavigationService, useValue: layoutNavigation },
+        { provide: GradingAnalyzerService, useValue: gradingAnalyzerService },
+        { provide: JobUpdateService, useValue: jobUpdateService },
+        { provide: ActivatedRoute, useValue: route },
+        // Use a single-attempt, zero-delay poll config so tests resolve immediately
+        { provide: POLL_CONFIG, useValue: { intervalMs: 0, maxAttempts: 1 } },
       ],
     });
+
+    if (options.cachedAnalysis != null) {
+      const stateService = TestBed.inject(StudentDashboardStateService);
+      stateService.setAnalysis(1, options.cachedAnalysis);
+    }
 
     const fixture = TestBed.createComponent(StudentView);
     fixture.detectChanges();
     await flush();
     fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
 
-    expect(mockLayoutNavigation.clearContext).toHaveBeenCalled();
-    expect(mockPageTitle.setTitle).toHaveBeenCalledWith('Student Dashboard');
-    const dashboardSection = fixture.nativeElement.querySelector(
-      'section[aria-label="Student analysis dashboard"]',
-    );
-    expect(dashboardSection).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('Student snapshot');
-    expect(fixture.nativeElement.textContent).toContain("You're making steady progress.");
-    expect(fixture.nativeElement.textContent).toContain('Dependency Injection');
-    expect(fixture.nativeElement.textContent).toContain('Routing');
-    expect(fixture.nativeElement.textContent).toContain('Strength');
-    expect(fixture.nativeElement.textContent).toContain('Weakness');
+    return {
+      fixture,
+      pageTitle,
+      layoutNavigation,
+      gradingAnalyzerService,
+      jobUpdateService,
+      updatesSignal,
+    };
+  }
+
+  it('renders exam-analysis-only dashboard copy and latest exam score', async () => {
+    const analysis: ExamAnalysisSummary = {
+      headline: 'Latest exam shows strong algebra performance.',
+      overall_score_pct: 0.88,
+      strengths: [
+        {
+          label: 'Algebra (strong)',
+          topic: 'Algebra',
+          performance: 'strong',
+          average_score_pct: 0.9,
+        },
+      ],
+      needs_review: [],
+      weaknesses: [
+        {
+          label: 'Geometry (weak)',
+          topic: 'Geometry',
+          performance: 'weak',
+          average_score_pct: 0.55,
+        },
+      ],
+    };
+
+    const { fixture, pageTitle, layoutNavigation } = await setup({ latestAnalysis: analysis });
+
+    expect(layoutNavigation.clearContext).toHaveBeenCalled();
+    expect(pageTitle.setTitle).toHaveBeenCalledWith('Student Dashboard');
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Exam insights');
+    expect(text).toContain('Latest uploaded exam analysis');
+    expect(text).toContain('Latest exam score');
+    expect(text).toContain('88%');
+    expect(text).toContain('Algebra');
+    expect(text).toContain('Geometry');
+    expect(text).not.toContain('Topics analyzed');
+    expect(text).not.toContain('Completion rate');
+    expect(text).not.toContain('Feedback coverage');
+    expect(text).not.toContain('submission');
   });
 
-  it('should show an error when dashboard analysis fails to load', async () => {
-    const mockPageTitle = {
-      setTitle: vi.fn(),
-    };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.reject(new Error('fail'))),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
+  it('shows 0% score when no analyzed exam exists', async () => {
+    const { fixture } = await setup({ latestAnalysis: null });
 
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain(
-      'Failed to load student dashboard analysis.',
-    );
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Latest exam score');
+    expect(text).toContain('0%');
+    expect(text).toContain('No analyzed exam data is available yet.');
   });
 
-  it('should show a course-id error when route params do not include an id', async () => {
-    const mockPageTitle = {
-      setTitle: vi.fn(),
-    };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: null,
-    };
-
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
+  it('shows an error when course id is missing', async () => {
+    const { fixture, jobUpdateService } = await setup({ courseId: null });
 
     expect(fixture.nativeElement.textContent).toContain('Failed to determine the current course.');
+    expect(jobUpdateService.subscribe).not.toHaveBeenCalled();
   });
 
-  it('should show "Submission complete" when a submission has no feedback', async () => {
-    const mockPageTitle = {
-      setTitle: vi.fn(),
-    };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() =>
-        Promise.resolve([
-          {
-            id: 10,
-            title: 'Dependency Injection',
-            type: 'iyow',
-            course_id: 1,
-            release_date: '2026-01-01T00:00:00Z',
-            due_date: '2026-01-02T00:00:00Z',
-            late_date: null,
-            created_at: '2026-01-01T00:00:00Z',
-            active_submission_count: null,
-          },
-        ]),
-      ),
-      getActiveSubmission: vi.fn(() =>
-        Promise.resolve({
-          id: 1,
-          activity_id: 10,
-          student_pid: 111111111,
-          is_active: true,
-          submitted_at: '2026-01-03T00:00:00Z',
-          response_text: 'A response',
-          feedback: '   ',
-          job: null,
-        }),
-      ),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Submission complete');
-  });
-
-  it('should show the latest exam analysis section when an analysis is available', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() =>
-        Promise.resolve({
-          headline: 'You excelled in Algebra!',
-          overall_score_pct: 0.88,
-          strengths: [
-            {
-              label: 'Algebra (strong)',
-              topic: 'Algebra',
-              performance: 'strong',
-              average_score_pct: 0.9,
-            },
-          ],
-          needs_review: [],
-          weaknesses: [
-            {
-              label: 'Geometry (weak)',
-              topic: 'Geometry',
-              performance: 'weak',
-              average_score_pct: 0.55,
-            },
-          ],
-        }),
-      ),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    // exam analysis loads after the loading spinner turns off — flush again
-    await flush();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Latest Exam Analysis');
-    expect(fixture.nativeElement.textContent).toContain('You excelled in Algebra!');
-    expect(fixture.nativeElement.textContent).toContain('Algebra');
-    expect(fixture.nativeElement.textContent).toContain('Geometry');
-  });
-
-  it('should not show the exam analysis section when no analysis is available', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelector('[aria-label="Latest exam analysis"]')).toBeNull();
-  });
-
-  it('should show empty-topic message when exam analysis has no topics', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() =>
-        Promise.resolve({
-          headline: '',
-          overall_score_pct: 0,
-          strengths: [],
-          needs_review: [],
-          weaknesses: [],
-        }),
-      ),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Latest Exam Analysis');
-    expect(fixture.nativeElement.textContent).toContain(
-      'No topic data available in this analysis.',
-    );
-  });
-
-  it('should return empty array from examAnalysisTopics when examAnalysis is null', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    const component = fixture.componentInstance;
-    // examAnalysis is null, so examAnalysisTopics should return []
-    expect(component['examAnalysisTopics']()).toEqual([]);
-  });
-
-  it('should show analysisLoading indicator when analysisLoading signal is true', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    fixture.componentInstance['analysisLoading'].set(true);
-    fixture.detectChanges();
-
-    expect(
-      fixture.nativeElement.querySelector('[aria-label="Exam analysis loading"]'),
-    ).toBeTruthy();
-  });
-
-  it('should poll for analysis when uploadId query param is present', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map([['uploadId', '42']]) },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const analysisData = {
-      headline: 'Great work!',
+  it('polls for analysis when uploadId query param is present', async () => {
+    const analysis: ExamAnalysisSummary = {
+      headline: 'Freshly analyzed upload',
       overall_score_pct: 0.9,
-      strengths: [{ label: 'Math', topic: 'Math', performance: 'strong', average_score_pct: 0.9 }],
-      needs_review: [],
-      weaknesses: [],
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(analysisData)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    expect(mockGradingAnalyzerService.getExamAnalysis).toHaveBeenCalledWith(1, 42);
-    expect(mockGradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('Latest Exam Analysis');
-    expect(fixture.nativeElement.textContent).toContain('Great work!');
-  });
-
-  it('should return analysis from pollForAnalysis on first successful attempt', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const analysisData = {
-      headline: 'Well done!',
-      overall_score_pct: 0.8,
       strengths: [],
       needs_review: [],
       weaknesses: [],
     };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(analysisData)),
-    };
 
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
+    const { fixture, gradingAnalyzerService } = await setup({
+      uploadId: '42',
+      pollAnalysis: analysis,
+      latestAnalysis: null,
     });
 
-    const fixture = TestBed.createComponent(StudentView);
-    const component = fixture.componentInstance;
-
-    const result = await component['pollForAnalysis'](1, 99, 0, 1);
-    expect(result).toEqual(analysisData);
+    expect(gradingAnalyzerService.getExamAnalysis).toHaveBeenCalledWith(1, 42);
+    expect(gradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Freshly analyzed upload');
   });
 
-  it('should return null from pollForAnalysis after max attempts exhausted', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    const component = fixture.componentInstance;
-
-    const result = await component['pollForAnalysis'](1, 99, 0, 1);
-    expect(result).toBeNull();
-  });
-
-  it('should map needs_review topics as weaknesses and use overall_score_pct as completion rate', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() =>
-        Promise.resolve({
-          headline: 'Mixed results',
-          overall_score_pct: 0.72,
-          strengths: [
-            {
-              label: 'Math (strong)',
-              topic: 'Math',
-              performance: 'strong',
-              average_score_pct: 0.9,
-            },
-          ],
-          needs_review: [
-            {
-              label: 'Science (review)',
-              topic: 'Science',
-              performance: 'needs_review',
-              average_score_pct: 0.65,
-            },
-          ],
-          weaknesses: [],
-        }),
-      ),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    const component = fixture.componentInstance;
-    // overall_score_pct should drive completionRate
-    expect(component['completionRate']()).toBe(0.72);
-    // Math (strength) should appear in the Strengths section
-    expect(
-      fixture.nativeElement.querySelector('[aria-label="Strength topics"]').textContent,
-    ).toContain('Math');
-    // Science (needs_review) should appear in the Weaknesses section
-    expect(
-      fixture.nativeElement.querySelector('[aria-label="Weakness topics"]').textContent,
-    ).toContain('Science');
-  });
-
-  it('should use cached analysis and skip getLatestAnalysis when cache is pre-populated', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const cachedAnalysis = {
-      headline: 'Cached result!',
+  it('uses cached analysis and skips network fetch', async () => {
+    const cachedAnalysis: ExamAnalysisSummary = {
+      headline: 'Cached exam analysis',
       overall_score_pct: 0.75,
-      strengths: [
-        {
-          label: 'Calculus (strong)',
-          topic: 'Calculus',
-          performance: 'strong' as const,
-          average_score_pct: 0.85,
-        },
-      ],
-      needs_review: [] as never[],
-      weaknesses: [] as never[],
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
-
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
-
-    // Pre-populate the cache before creating the component
-    const stateService = TestBed.inject(StudentDashboardStateService);
-    stateService.setAnalysis(1, cachedAnalysis);
-
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    // Cache hit — network fetch must not be made
-    expect(mockGradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('Cached result!');
-  });
-
-  it('should store analysis in state service after loading from network', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const networkAnalysis = {
-      headline: 'Network result',
-      overall_score_pct: 0.6,
       strengths: [],
       needs_review: [],
       weaknesses: [],
     };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(networkAnalysis)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
-    };
 
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
+    const { fixture, gradingAnalyzerService } = await setup({
+      cachedAnalysis,
+      latestAnalysis: null,
     });
 
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    const stateService = TestBed.inject(StudentDashboardStateService);
-    expect(stateService.getAnalysis(1)).toEqual(networkAnalysis);
+    expect(gradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Cached exam analysis');
   });
 
-  it('should not store null in state service when getLatestAnalysis returns null', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
+  it('stores network analysis in dashboard state service', async () => {
+    const analysis: ExamAnalysisSummary = {
+      headline: 'Network analysis',
+      overall_score_pct: 0.62,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
     };
 
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
-    });
+    await setup({ latestAnalysis: analysis });
 
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
-
-    // null must NOT be cached — the next visit should still attempt a network fetch
     const stateService = TestBed.inject(StudentDashboardStateService);
-    expect(stateService.getAnalysis(1)).toBeUndefined();
+    expect(stateService.getAnalysis(1)).toEqual(analysis);
   });
 
-  it('should use cached analysis from state service when set externally (e.g. by exam-history)', async () => {
-    const mockPageTitle = { setTitle: vi.fn() };
-    const mockLayoutNavigation = { clearContext: vi.fn() };
-    const mockActivityService = {
-      list: vi.fn(() => Promise.resolve([])),
-      getActiveSubmission: vi.fn(() => Promise.resolve(null)),
-    };
-    const mockRoute = {
-      snapshot: { queryParamMap: new Map() },
-      parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
-    };
-    const examHistoryAnalysis = {
-      headline: 'Set by exam history!',
-      overall_score_pct: 0.82,
-      strengths: [
-        {
-          label: 'Physics (strong)',
-          topic: 'Physics',
-          performance: 'strong' as const,
-          average_score_pct: 0.82,
-        },
-      ],
-      needs_review: [] as never[],
-      weaknesses: [] as never[],
-    };
-    const mockGradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
-      getExamAnalysis: vi.fn(() => Promise.resolve(null)),
+  it('refreshes dashboard when an exam analysis job completes', async () => {
+    const refreshAnalysis: ExamAnalysisSummary = {
+      headline: 'Updated from realtime completion',
+      overall_score_pct: 0.94,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
     };
 
-    TestBed.configureTestingModule({
-      imports: [StudentView],
-      providers: [
-        { provide: PageTitleService, useValue: mockPageTitle },
-        { provide: LayoutNavigationService, useValue: mockLayoutNavigation },
-        { provide: ActivityService, useValue: mockActivityService },
-        { provide: GradingAnalyzerService, useValue: mockGradingAnalyzerService },
-        { provide: ActivatedRoute, useValue: mockRoute },
-      ],
+    const { fixture, gradingAnalyzerService, updatesSignal } = await setup({
+      latestAnalysis: null,
     });
 
-    // Simulate exam-history setting the cache after polling completes
-    const stateService = TestBed.inject(StudentDashboardStateService);
-    stateService.setAnalysis(1, examHistoryAnalysis);
+    // Replace the mock implementation mid-test to return refreshAnalysis on next call
+    gradingAnalyzerService.getLatestAnalysis
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(refreshAnalysis);
 
-    const fixture = TestBed.createComponent(StudentView);
-    fixture.detectChanges();
+    updatesSignal.set(
+      new Map([
+        [
+          77,
+          {
+            job_id: 77,
+            course_id: 1,
+            user_id: 111111111,
+            kind: 'exam_analysis',
+            status: 'completed',
+          },
+        ],
+      ]),
+    );
+
     await flush();
     fixture.detectChanges();
-    await flush();
-    fixture.detectChanges();
 
-    expect(mockGradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.textContent).toContain('Set by exam history!');
+    expect(fixture.nativeElement.textContent).toContain('Updated from realtime completion');
+  });
+
+  it('subscribes and unsubscribes job updates for the course', async () => {
+    const { fixture, jobUpdateService } = await setup();
+
+    expect(jobUpdateService.subscribe).toHaveBeenCalledWith(1);
+
+    fixture.destroy();
+
+    expect(jobUpdateService.unsubscribe).toHaveBeenCalledWith(1);
+  });
+
+  it('falls back to refreshLatestAnalysis when uploadId polling returns null', async () => {
+    const refreshedAnalysis: ExamAnalysisSummary = {
+      headline: 'Refreshed from getLatestAnalysis',
+      overall_score_pct: 0.85,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
+    };
+
+    const { fixture, gradingAnalyzerService } = await setup({
+      uploadId: '42',
+      pollAnalysis: null,
+      latestAnalysis: refreshedAnalysis,
+    });
+
+    expect(gradingAnalyzerService.getExamAnalysis).toHaveBeenCalledWith(1, 42);
+    expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);
+    expect(fixture.nativeElement.textContent).toContain('Refreshed from getLatestAnalysis');
+  });
+
+  it('calls refreshLatestAnalysis when no uploadId and no cache exists', async () => {
+    const refreshedAnalysis: ExamAnalysisSummary = {
+      headline: 'Analysis from getLatestAnalysis',
+      overall_score_pct: 0.79,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
+    };
+
+    const { fixture, gradingAnalyzerService } = await setup({
+      latestAnalysis: refreshedAnalysis,
+    });
+
+    expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);
+    expect(fixture.nativeElement.textContent).toContain('Analysis from getLatestAnalysis');
   });
 });

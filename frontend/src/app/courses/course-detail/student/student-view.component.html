@@ -17,23 +17,25 @@
           <div
             class="flex h-40 w-40 items-center justify-center rounded-full p-4 shadow-sm"
             [style.background]="progressRingBackground()"
-            aria-label="Completion progress ring"
+            aria-label="Latest exam score ring"
           >
             <div
               class="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center"
             >
-              <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">Progress</p>
-              <p class="text-3xl font-semibold">{{ completionRate() * 100 | number: '1.0-0' }}%</p>
+              <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">
+                Latest exam score
+              </p>
+              <p class="text-3xl font-semibold">{{ overallScore() * 100 | number: '1.0-0' }}%</p>
             </div>
           </div>
         </div>
 
         <div class="space-y-3">
-          <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">Student snapshot</p>
-          <h2 class="text-3xl leading-tight font-semibold">You're making steady progress.</h2>
+          <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">Exam insights</p>
+          <h2 class="text-3xl leading-tight font-semibold">Latest uploaded exam analysis</h2>
           <p class="max-w-2xl text-base text-slate-600">
-            This view highlights the topics you have already completed and the ones that still need
-            attention so you can focus your next submission.
+            Review strengths and weaknesses from your analyzed exam uploads to focus your next study
+            session.
           </p>
           <div class="flex flex-wrap gap-3 pt-2">
             <span
@@ -44,38 +46,10 @@
             <span class="rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800">
               {{ weaknesses().length }} weaknesses
             </span>
-            <span class="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">
-              {{ feedbackCoverage() * 100 | number: '1.0-0' }}% feedback coverage
-            </span>
           </div>
         </div>
       </mat-card-content>
     </mat-card>
-
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <mat-card appearance="outlined">
-        <mat-card-content>
-          <p class="text-sm opacity-75">Topics analyzed</p>
-          <p class="mt-2 text-2xl font-semibold">{{ analyzedTopicCount() }}</p>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card appearance="outlined">
-        <mat-card-content>
-          <p class="text-sm opacity-75">Completion rate</p>
-          <p class="mt-2 text-2xl font-semibold">{{ completionRate() * 100 | number: '1.0-0' }}%</p>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card appearance="outlined">
-        <mat-card-content>
-          <p class="text-sm opacity-75">Feedback coverage</p>
-          <p class="mt-2 text-2xl font-semibold">
-            {{ feedbackCoverage() * 100 | number: '1.0-0' }}%
-          </p>
-        </mat-card-content>
-      </mat-card>
-    </div>
 
     @if (analysisLoading()) {
       <mat-card appearance="outlined" aria-label="Exam analysis loading">
@@ -125,7 +99,7 @@
       <mat-card appearance="outlined" aria-label="Strength topics">
         <mat-card-header>
           <mat-card-title>Strengths</mat-card-title>
-          <mat-card-subtitle>Topics you have submitted</mat-card-subtitle>
+          <mat-card-subtitle>Topics where exam performance is strongest</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           @if (strengths().length > 0) {
@@ -141,14 +115,18 @@
                     </span>
                   </div>
                   <p class="mt-2 text-sm opacity-80">
-                    {{ topic.feedbackAvailable ? 'Feedback available' : 'Submission complete' }}
+                    {{
+                      topic.feedbackAvailable
+                        ? 'Included in analyzed exam feedback'
+                        : 'Strong performance'
+                    }}
                   </p>
                 </li>
               }
             </ul>
           } @else {
             <p class="text-sm opacity-75">
-              No strengths detected yet. Submit activities to build progress.
+              No strengths identified yet. Upload and analyze an exam to view strengths.
             </p>
           }
         </mat-card-content>
@@ -157,7 +135,7 @@
       <mat-card appearance="outlined" aria-label="Weakness topics">
         <mat-card-header>
           <mat-card-title>Weaknesses</mat-card-title>
-          <mat-card-subtitle>Topics missing a submission</mat-card-subtitle>
+          <mat-card-subtitle>Topics that need more review from recent analysis</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           @if (weaknesses().length > 0) {
@@ -172,14 +150,12 @@
                       Weakness
                     </span>
                   </div>
-                  <p class="mt-2 text-sm opacity-80">No submission yet.</p>
+                  <p class="mt-2 text-sm opacity-80">Needs additional review.</p>
                 </li>
               }
             </ul>
           } @else {
-            <p class="text-sm opacity-75">
-              No weaknesses detected. Great work staying on top of submissions.
-            </p>
+            <p class="text-sm opacity-75">No weaknesses identified in your latest analyzed exam.</p>
           }
         </mat-card-content>
       </mat-card>
@@ -188,7 +164,7 @@
     <mat-card appearance="outlined" aria-label="Topic breakdown">
       <mat-card-header>
         <mat-card-title>Topic breakdown</mat-card-title>
-        <mat-card-subtitle>Submission status by topic</mat-card-subtitle>
+        <mat-card-subtitle>Score by topic from latest analyzed exam</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         @if (topics().length > 0) {
@@ -216,13 +192,15 @@
                   ></div>
                 </div>
                 <p class="mt-1 text-sm opacity-80">
-                  {{ topic.completionPercent === 100 ? 'Submitted' : 'Not submitted' }}
+                  {{ topic.completionPercent | number: '1.0-0' }}% score
                 </p>
               </li>
             }
           </ul>
         } @else {
-          <p class="text-sm opacity-75">No activity data is available for this course yet.</p>
+          <p class="text-sm opacity-75">
+            No analyzed exam data is available yet. Upload an exam to see topic performance.
+          </p>
         }
       </mat-card-content>
     </mat-card>

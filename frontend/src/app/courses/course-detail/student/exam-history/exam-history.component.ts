@@ -88,6 +88,8 @@ export class ExamHistory {
       const uploads: ExamPdfHistoryItem[] = await this.api.invoke(listExamPdfUploads, {
         course_id: this.courseId,
       });
+      const cachedAnalysis = this.dashboardState.getAnalysis(this.courseId);
+      const cachedUploadId = this.resolveCachedUploadId(uploads, cachedAnalysis);
 
       const entries = await Promise.all(
         uploads.map(async (upload): Promise<ExamHistoryEntry> => {
@@ -97,6 +99,12 @@ export class ExamHistory {
               upload.id,
             );
             return { upload, analysis };
+          }
+          if (cachedUploadId === upload.id && cachedAnalysis) {
+            return {
+              upload: { ...upload, has_analysis: true },
+              analysis: cachedAnalysis,
+            };
           }
           return { upload, analysis: null };
         }),
@@ -119,6 +127,35 @@ export class ExamHistory {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private resolveCachedUploadId(
+    uploads: ExamPdfHistoryItem[],
+    cachedAnalysis: ExamAnalysisSummary | null | undefined,
+  ): number | null {
+    if (!cachedAnalysis) {
+      return null;
+    }
+
+    if (this.newUploadId !== null && Number.isFinite(this.newUploadId)) {
+      const pendingUpload = uploads.find((upload) => upload.id === this.newUploadId);
+      if (pendingUpload && !pendingUpload.has_analysis) {
+        return pendingUpload.id;
+      }
+    }
+
+    const mostRecentUpload = uploads.reduce<ExamPdfHistoryItem | null>((latest, current) => {
+      if (!latest) {
+        return current;
+      }
+      return Date.parse(current.uploaded_at) > Date.parse(latest.uploaded_at) ? current : latest;
+    }, null);
+
+    if (mostRecentUpload && !mostRecentUpload.has_analysis) {
+      return mostRecentUpload.id;
+    }
+
+    return null;
   }
 
   private async pollEntryForAnalysis(

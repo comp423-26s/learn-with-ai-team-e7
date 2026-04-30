@@ -14,6 +14,7 @@ import type { ExamAnalysisSummary } from '../../../../api/generated/models/exam-
 import { PracticeService } from '../practice.service';
 import { Router } from '@angular/router';
 import { Provider } from '@angular/core';
+import { StudentDashboardStateService } from '../../student/student-dashboard-state.service';
 
 const STUB_ANALYSIS: ExamAnalysisSummary = {
   headline: 'You performed well in Algebra. Focus your revision on Geometry.',
@@ -109,6 +110,39 @@ describe('AnalysisResultsComponent', () => {
     const el: HTMLElement = fixture.nativeElement;
 
     expect(el.textContent).toContain('Something went wrong processing your exam.');
+  });
+
+  it('uses cached analysis when polling fails', async () => {
+    const cachedAnalysis: ExamAnalysisSummary = {
+      headline: 'Cached result headline',
+      overall_score_pct: 0.85,
+      strengths: [
+        {
+          label: 'Algebra (strong)',
+          topic: 'Algebra',
+          performance: 'strong',
+          average_score_pct: 0.95,
+        },
+      ],
+      weaknesses: [],
+      needs_review: [],
+    };
+
+    const dashboardStateService = {
+      getAnalysis: vi.fn().mockReturnValue(cachedAnalysis),
+    };
+
+    const { fixture } = await setup({
+      analysis: null,
+      extraProviders: [{ provide: StudentDashboardStateService, useValue: dashboardStateService }],
+    });
+
+    const el: HTMLElement = fixture.nativeElement;
+
+    // Should render cached data instead of error
+    expect(el.textContent).toContain('Cached result headline');
+    expect(el.textContent).toContain('Algebra');
+    expect(el.textContent).not.toContain('Something went wrong');
   });
 
   it('shows empty-state messages when analysis arrays are empty', async () => {

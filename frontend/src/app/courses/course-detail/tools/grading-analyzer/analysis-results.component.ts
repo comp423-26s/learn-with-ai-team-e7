@@ -14,6 +14,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { PageTitleService } from '../../../../page-title.service';
 import { GradingAnalyzerService } from '../grading-analyzer.service';
 import { PracticeService } from '../practice.service';
+import { StudentDashboardStateService } from '../../student/student-dashboard-state.service';
 import type { TopicSummaryLine } from '../../../../api/generated/models/topic-summary-line';
 import type { PracticeMaterialResponse } from '../../../../api/generated/models/practice-material-response';
 
@@ -30,6 +31,7 @@ export class AnalysisResultsComponent implements OnInit {
   private readonly gradingAnalyzerService = inject(GradingAnalyzerService);
   private readonly practiceService = inject(PracticeService);
   private readonly titleService = inject(PageTitleService);
+  private readonly dashboardState = inject(StudentDashboardStateService);
 
   // ── existing signals ──────────────────────────────────────────────────────
   protected readonly loading = signal(true);
@@ -67,7 +69,14 @@ export class AnalysisResultsComponent implements OnInit {
 
     this.uploadId.set(uploadId);
 
-    const analysis = await this.gradingAnalyzerService.getExamAnalysis(this.courseId, uploadId);
+    let analysis = await this.gradingAnalyzerService.getExamAnalysis(this.courseId, uploadId);
+
+    // if polling failed, try dashboard cache as fallback (useful if cache was populated
+    // from a recent exam upload while this page was loading)
+    if (!analysis) {
+      analysis = this.dashboardState.getAnalysis(this.courseId) ?? null;
+    }
+
     if (analysis === null) {
       this.errorMessage.set(
         'Something went wrong processing your exam. Please try uploading again.',

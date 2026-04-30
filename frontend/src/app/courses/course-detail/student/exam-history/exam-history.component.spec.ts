@@ -13,6 +13,7 @@ import { AuthService } from '../../../../auth.service';
 import { StudentDashboardStateService } from '../student-dashboard-state.service';
 import { Api } from '../../../../api/generated/api';
 import { ExamPdfHistoryItem } from '../../../../api/generated/models';
+import type { ExamAnalysisSummary } from '../../../../api/generated/models/exam-analysis-summary';
 import { vi } from 'vitest';
 
 type ApiStub = {
@@ -273,6 +274,115 @@ describe('ExamHistory', () => {
       fixture.detectChanges();
 
       expect(fixture.nativeElement.textContent).toContain('Analysis not yet available');
+    });
+
+    it('should use cached dashboard analysis for the most recent upload without analysis', async () => {
+      const mockUploads: ExamPdfHistoryItem[] = [
+        {
+          id: 1,
+          original_filename: 'older.pdf',
+          uploaded_at: '2026-04-10T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+        {
+          id: 2,
+          original_filename: 'recent.pdf',
+          uploaded_at: '2026-04-20T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+      ];
+
+      mockApi.invoke.mockResolvedValue(mockUploads);
+
+      const cachedAnalysis = {
+        headline: 'Cached dashboard analysis',
+        overall_score_pct: 0.91,
+        strengths: [
+          {
+            label: 'Algebra (strong)',
+            topic: 'Algebra',
+            performance: 'strong' as const,
+            average_score_pct: 0.91,
+          },
+        ],
+        needs_review: [],
+        weaknesses: [],
+      };
+
+      const dashboardState = TestBed.inject(
+        StudentDashboardStateService,
+      ) as unknown as DashboardStateStub;
+      dashboardState.getAnalysis.mockReturnValue(cachedAnalysis);
+
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent;
+      expect(text).toContain('recent.pdf');
+      expect(text).toContain('Cached dashboard analysis');
+      expect(text).toContain('91%');
+      expect(text).toContain('View Analysis');
+    });
+
+    it('prioritizes newUploadId when hydrating from cache', async () => {
+      const mockUploads: ExamPdfHistoryItem[] = [
+        {
+          id: 10,
+          original_filename: 'older.pdf',
+          uploaded_at: '2026-04-10T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+        {
+          id: 11,
+          original_filename: 'newest.pdf',
+          uploaded_at: '2026-04-20T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+        {
+          id: 12,
+          original_filename: 'specific.pdf',
+          uploaded_at: '2026-04-15T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+      ];
+
+      mockApi.invoke.mockResolvedValue(mockUploads);
+
+      const cachedAnalysis = {
+        headline: 'Cached analysis for specific upload',
+        overall_score_pct: 0.88,
+        strengths: [],
+        needs_review: [],
+        weaknesses: [],
+      };
+
+      const dashboardState = TestBed.inject(
+        StudentDashboardStateService,
+      ) as unknown as DashboardStateStub;
+      dashboardState.getAnalysis.mockReturnValue(cachedAnalysis);
+
+      // Reconfigure route to include uploadId query param
+      const mockRoute = TestBed.inject(ActivatedRoute);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mockRoute.snapshot as any).queryParamMap = new Map([['uploadId', '12']]);
+
+      fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent;
+      // Verify that specific.pdf (id:12) got the cache, not newest.pdf (id:11)
+      expect(text).toContain('specific.pdf');
+      expect(text).toContain('Cached analysis for specific upload');
+      expect(text).toContain('88%');
     });
 
     it('should call getExamAnalysis for uploads with has_analysis true', async () => {
@@ -672,6 +782,49 @@ describe('ExamHistory', () => {
 
       const banner = fixture.nativeElement.querySelector('.student-banner');
       expect(banner).toBeNull();
+    });
+  });
+
+  describe('cache hydration with multiple uploads', () => {
+    it('does not hydrate from cache when most recent upload already has analysis', async () => {
+      const cachedAnalysis: ExamAnalysisSummary = {
+        headline: 'Cached analysis should not apply here',
+        overall_score_pct: 0.9,
+        strengths: [],
+        needs_review: [],
+        weaknesses: [],
+      };
+
+      const mockUploads: ExamPdfHistoryItem[] = [
+        {
+          id: 10,
+          original_filename: 'old.pdf',
+          uploaded_at: '2026-04-10T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+        {
+          id: 20,
+          original_filename: 'recent.pdf',
+          uploaded_at: '2026-04-20T00:00:00Z',
+          has_analysis: true, // already has analysis
+          has_practice: false,
+        },
+      ];
+
+      const stubs = await configureModule('1');
+      stubs.api.invoke.mockResolvedValue(mockUploads);
+      stubs.dashboardState.getAnalysis.mockReturnValue(cachedAnalysis);
+
+      const fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      // recent.pdf already has analysis, so cache shouldn't be applied to any entry
+      const text = fixture.nativeElement.textContent;
+      // Cache headline should not appear because recent upload (id:20) already has analysis
+      expect(text).not.toContain('Cached analysis should not apply here');
     });
   });
 });

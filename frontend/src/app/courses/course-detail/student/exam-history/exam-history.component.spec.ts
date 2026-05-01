@@ -153,7 +153,7 @@ describe('ExamHistory', () => {
           original_filename: 'exam2.pdf',
           uploaded_at: '2026-04-20T00:00:00Z',
           has_analysis: false,
-          has_practice: true,
+          has_practice: false,
         },
       ];
 
@@ -231,14 +231,14 @@ describe('ExamHistory', () => {
       expect(text).toContain('Geometry');
     });
 
-    it('should render analysis and practice action links correctly', async () => {
+    it('should render analysis action link when analysis is available', async () => {
       const mockUploads: ExamPdfHistoryItem[] = [
         {
           id: 1,
           original_filename: 'exam1.pdf',
           uploaded_at: '2026-04-15T00:00:00Z',
           has_analysis: true,
-          has_practice: true,
+          has_practice: false,
         },
       ];
 
@@ -252,7 +252,7 @@ describe('ExamHistory', () => {
 
       const text = fixture.nativeElement.textContent;
       expect(text).toContain('View Analysis');
-      expect(text).toContain('Practice Materials');
+      expect(text).not.toContain('Practice Materials');
     });
 
     it('should show "not yet available" message when upload has no analysis', async () => {

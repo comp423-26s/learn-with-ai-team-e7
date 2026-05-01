@@ -116,7 +116,7 @@ export const routes: Routes = [
                   ),
               },
               {
-                path: 'tools/grading-analyzer/practice',
+                path: 'grading-analyzer/practice',
                 loadComponent: () =>
                   import('./courses/course-detail/tools/practice-materials/practice-materials.component').then(
                     (m) => m.PracticeMaterialsComponent,
@@ -129,14 +129,14 @@ export const routes: Routes = [
                     (m) => m.AnalysisResultsComponent,
                   ),
               },
-              {
-                path: 'student/tools/grading-analyzer/practice',
-                loadComponent: () =>
-                  import('./courses/course-detail/tools/practice-materials/practice-materials.component').then(
-                    (m) => m.PracticeMaterialsComponent,
-                  ),
-              },
             ],
+          },
+          {
+            path: 'student/tools/grading-analyzer/practice',
+            loadComponent: () =>
+              import('./courses/course-detail/tools/practice-materials/practice-materials.component').then(
+                (m) => m.PracticeMaterialsComponent,
+              ),
           },
           {
             path: 'student/tools/grading-analyzer',
@@ -157,6 +157,13 @@ export const routes: Routes = [
             loadComponent: () =>
               import('./courses/course-detail/student/student-tools.component').then(
                 (m) => m.StudentTools,
+              ),
+          },
+          {
+            path: 'student/tools/generate-practice',
+            loadComponent: () =>
+              import('./courses/course-detail/student/generate-practice/generate-practice.component').then(
+                (m) => m.GeneratePractice,
               ),
           },
           {

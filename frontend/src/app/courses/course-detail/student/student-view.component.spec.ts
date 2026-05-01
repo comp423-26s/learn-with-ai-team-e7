@@ -212,9 +212,7 @@ describe('StudentView', () => {
     });
 
     // Replace the mock implementation mid-test to return refreshAnalysis on next call
-    gradingAnalyzerService.getLatestAnalysis
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(refreshAnalysis);
+    gradingAnalyzerService.getLatestAnalysis.mockResolvedValueOnce(refreshAnalysis);
 
     updatesSignal.set(
       new Map([
@@ -231,6 +229,7 @@ describe('StudentView', () => {
       ]),
     );
 
+    await flush();
     await flush();
     fixture.detectChanges();
 

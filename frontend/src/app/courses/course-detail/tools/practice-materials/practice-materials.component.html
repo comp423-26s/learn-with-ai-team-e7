@@ -12,7 +12,6 @@
   </mat-card>
 } @else {
   <div class="practice-grid">
-
     @if (weakTopics().length > 0) {
       <p class="weak-topics-heading" data-testid="weak-topics-heading">
         Targeting weak topics: {{ weakTopics().join(', ') }}
@@ -55,12 +54,7 @@
               Previous
             </button>
 
-            <button
-              mat-flat-button
-              color="primary"
-              data-testid="flip-btn"
-              (click)="onFlip()"
-            >
+            <button mat-flat-button color="primary" data-testid="flip-btn" (click)="onFlip()">
               {{ flipped() ? 'Show Front' : 'Flip' }}
             </button>
 
@@ -105,11 +99,7 @@
             Question {{ questionIndex() + 1 }} of {{ questions().length }}
           </p>
 
-          <mat-progress-bar
-            mode="determinate"
-            [value]="progressPct()"
-            data-testid="progress-bar"
-          />
+          <mat-progress-bar mode="determinate" [value]="progressPct()" data-testid="progress-bar" />
 
           <p class="question-text" data-testid="question-text">
             {{ currentQuestion()?.question_text }}
@@ -172,6 +162,5 @@
         }
       </mat-card-content>
     </mat-card>
-
   </div>
 }

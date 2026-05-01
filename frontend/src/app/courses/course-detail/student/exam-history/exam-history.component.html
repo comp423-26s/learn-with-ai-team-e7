@@ -121,24 +121,6 @@
                   View Analysis
                 </a>
               }
-              @if (entry.upload.has_practice) {
-                <a
-                  mat-button
-                  [routerLink]="[
-                    '/courses',
-                    courseId,
-                    'student',
-                    'tools',
-                    'grading-analyzer',
-                    'practice',
-                  ]"
-                  [queryParams]="{ uploadId: entry.upload.id }"
-                  aria-label="View practice materials for {{ entry.upload.original_filename }}"
-                >
-                  <mat-icon>quiz</mat-icon>
-                  Practice Materials
-                </a>
-              }
             </mat-card-actions>
           </mat-card>
         </li>

@@ -105,17 +105,20 @@ def test_practice_material_set_round_trips() -> None:
     assert len(restored.flashcards) == 1
 
 
-def test_practice_material_set_rejects_extra_fields() -> None:
-    with pytest.raises(ValidationError):
-        PracticeMaterialSet.model_validate(
-            {
-                "upload_id": 1,
-                "weak_topics": ["T"],
-                "questions": [{"question_text": "Q?", "answer": "A", "topic": "T", "difficulty": "medium"}],
-                "flashcards": [{"front": "F", "back": "B", "topic": "T"}],
-                "unexpected_field": "oops",
-            }
-        )
+def test_practice_material_set_ignores_extra_fields() -> None:
+    """Extra fields are now ignored to allow LLM responses with metadata."""
+    model = PracticeMaterialSet.model_validate(
+        {
+            "upload_id": 1,
+            "weak_topics": ["T"],
+            "questions": [{"question_text": "Q?", "answer": "A", "topic": "T", "difficulty": "medium"}],
+            "flashcards": [{"front": "F", "back": "B", "topic": "T"}],
+            "unexpected_field": "oops",
+            "metadata": {"source": "llm"},
+        }
+    )
+    assert model.upload_id == 1
+    assert len(model.weak_topics) == 1
 
 
 def test_practice_material_set_rejects_empty_questions() -> None:

@@ -16,10 +16,36 @@
     </mat-card-content>
   </mat-card>
 } @else {
+  <div class="top-actions">
+    @if (generateError()) {
+      <p role="alert" class="error-message" data-testid="generate-error">{{ generateError() }}</p>
+    } @else if (generating()) {
+      <div class="generating-state" role="status" aria-live="polite">
+        <mat-progress-bar mode="indeterminate" aria-label="Generating practice materials" />
+        <p class="generating-message">Generating your practice materials&hellip;</p>
+      </div>
+    }
+  </div>
+
   <p class="instructions">
     Select an exam you uploaded to generate personalized flashcards and practice questions targeting
     your weak topics.
   </p>
+
+  @if (!generating() && !generateError()) {
+    <div class="generate-action">
+      <button
+        mat-flat-button
+        [disabled]="selectedUploadId() === null"
+        (click)="onGenerate()"
+        data-testid="generate-btn"
+        aria-label="Generate practice materials for selected exam"
+      >
+        <mat-icon>auto_awesome</mat-icon>
+        Generate Practice Materials
+      </button>
+    </div>
+  }
 
   <ul class="exam-list" aria-label="Your uploaded exams">
     @for (exam of exams(); track exam.id) {
@@ -43,28 +69,4 @@
       </li>
     }
   </ul>
-
-  @if (generateError()) {
-    <p role="alert" class="error-message" data-testid="generate-error">{{ generateError() }}</p>
-  }
-
-  @if (generating()) {
-    <div class="generating-state" role="status" aria-live="polite">
-      <mat-progress-bar mode="indeterminate" aria-label="Generating practice materials" />
-      <p class="generating-message">Generating your practice materials&hellip;</p>
-    </div>
-  } @else {
-    <div class="generate-action">
-      <button
-        mat-flat-button
-        [disabled]="selectedUploadId() === null"
-        (click)="onGenerate()"
-        data-testid="generate-btn"
-        aria-label="Generate practice materials for selected exam"
-      >
-        <mat-icon>auto_awesome</mat-icon>
-        Generate Practice Materials
-      </button>
-    </div>
-  }
 }

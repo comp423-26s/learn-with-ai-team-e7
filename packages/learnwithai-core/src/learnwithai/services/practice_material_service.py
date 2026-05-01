@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 from pydantic import ValidationError
@@ -38,6 +39,7 @@ class PracticeMaterialService:
         self._exam_pdf_upload_repo = exam_pdf_upload_repo
         self._exam_pdf_text_repo = exam_pdf_text_repo
         self._practice_material_repo = practice_material_repo
+        self._logger = logging.getLogger(__name__)
 
     def generate_materials(self, upload_id: int, student_pid: int, course_id: int) -> PracticeMaterial:
         """Generates and persists practice materials for one exam upload.
@@ -53,6 +55,7 @@ class PracticeMaterialService:
         Raises:
             ValueError: If the upload does not exist.
         """
+        print(f"DEBUG: generate_materials called for upload {upload_id}", flush=True)
         upload = self._exam_pdf_upload_repo.get_by_id(upload_id)
         if upload is None:
             raise ValueError("Exam PDF upload not found")
@@ -61,12 +64,19 @@ class PracticeMaterialService:
         extracted = self._exam_pdf_text_repo.get_by_upload_id(upload_id)
         exam_text = extracted.extracted_text if extracted is not None else ""
 
+        print(f"DEBUG: Calling LLM for upload {upload_id} with topics: {weak_topics}", flush=True)
         llm_response = self._ai_completion_service.complete(
             system_prompt=self._system_prompt(),
-            user_prompt=self._user_prompt(weak_topics, exam_text),
+            user_prompt=self._user_prompt(upload_id, weak_topics, exam_text),
         )
+        self._logger.debug("LLM response for upload %s: %s", upload_id, llm_response)
+        print(f"DEBUG: LLM returned {len(llm_response)} chars", flush=True)
         parsed = self._parse_llm_response(llm_response, upload_id)
         if parsed is None:
+            print(f"DEBUG: Falling back to stub materials for upload {upload_id}", flush=True)
+            self._logger.warning(
+                "LLM response could not be parsed; falling back to local generator for upload %s", upload_id
+            )
             parsed = self._fallback_material_set(upload_id, weak_topics, exam_text)
 
         existing = self._practice_material_repo.get_by_upload_id(upload_id)
@@ -83,16 +93,21 @@ class PracticeMaterialService:
 
     def _system_prompt(self) -> str:
         return (
-            "You are a revision-material generator. "
-            "Return ONLY valid JSON with no markdown. "
-            "Use the provided weak topics and the actual exam text to create exactly 5 practice questions "
-            "and 5 flashcards per weak topic. "
-            "Keep every item grounded in the exam content and avoid introducing unrelated topics. "
-            "Use the weak topic names exactly as provided."
+            "You are a practice material generator. Your task is to return ONLY a JSON object with exactly 4 top-level fields:\n"
+            "1. upload_id (copy from input)\n"
+            "2. weak_topics (copy from input)\n"
+            "3. questions (array of practice questions)\n"
+            "4. flashcards (array of flashcards)\n\n"
+            "Each question object must have: question_text, answer, topic, difficulty.\n"
+            "Each flashcard must have: front, back, topic.\n"
+            "Provide 5 questions per weak topic (not total, per topic).\n"
+            "Provide 5 flashcards per weak topic (not total, per topic).\n"
+            "Return ONLY valid JSON. Do not include markdown, code fences (```), or any text before/after the JSON."
         )
 
-    def _user_prompt(self, weak_topics: list[str], exam_text: str) -> str:
+    def _user_prompt(self, upload_id: int, weak_topics: list[str], exam_text: str) -> str:
         payload = {
+            "upload_id": upload_id,
             "exam_text": exam_text,
             "weak_topics": weak_topics,
             "required_schema": {
@@ -120,26 +135,66 @@ class PracticeMaterialService:
     def _parse_llm_response(self, raw_response: str, upload_id: int) -> PracticeMaterialSet | None:
         json_payload = self._extract_json_object(raw_response)
         if json_payload is None:
+            msg = f"Failed to extract JSON from LLM response for upload {upload_id}. Response: {raw_response[:500]}"
+            print(f"PARSE_ERROR: {msg}", flush=True)
+            self._logger.warning(msg)
             return None
 
         try:
-            parsed = PracticeMaterialSet.model_validate_json(json_payload)
-        except ValidationError:
+            loaded = json.loads(json_payload)
+        except Exception as exc:
+            msg = (
+                f"Failed to JSON-decode LLM payload for upload {upload_id}. Payload: {json_payload[:300]}; Error: {exc}"
+            )
+            print(f"PARSE_ERROR: {msg}", flush=True)
+            self._logger.warning(msg)
+            return None
+
+        if not isinstance(loaded, dict):
+            msg = f"LLM JSON payload is not a dict for upload {upload_id}: {loaded}"
+            print(f"PARSE_ERROR: {msg}", flush=True)
+            self._logger.warning(msg)
+            return None
+
+        try:
+            parsed = PracticeMaterialSet.model_validate(loaded)
+        except ValidationError as ve:
+            msg = f"PracticeMaterialSet validation failed for upload {upload_id}. Data: {json.dumps(loaded)[:300]}; Errors: {str(ve)[:200]}"
+            print(f"PARSE_ERROR: {msg}", flush=True)
+            self._logger.warning(msg)
             return None
 
         if parsed.upload_id != upload_id:
+            msg = f"Upload ID mismatch for upload {upload_id}: expected {upload_id}, got {parsed.upload_id}"
+            print(f"PARSE_ERROR: {msg}", flush=True)
+            self._logger.warning(msg)
             return None
+
+        print(
+            f"SUCCESS: Parsed practice materials for upload {upload_id}: {len(parsed.questions)} questions, {len(parsed.flashcards)} flashcards",
+            flush=True,
+        )
         return parsed
 
     def _extract_json_object(self, text: str) -> str | None:
+        """Extract JSON object from text, handling markdown code fences and surrounding text."""
         stripped = text.strip()
+
+        # If already starts and ends with braces, return as-is
         if stripped.startswith("{") and stripped.endswith("}"):
             return stripped
 
+        # Try to find a valid JSON object
+        match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", stripped, flags=re.DOTALL)
+        if match:
+            return match.group(0)
+
+        # Fallback: try the greedy approach (may capture too much, but better than nothing)
         match = re.search(r"\{.*\}", stripped, flags=re.DOTALL)
-        if match is None:
-            return None
-        return match.group(0)
+        if match is not None:
+            return match.group(0)
+
+        return None
 
     def _fallback_material_set(
         self,

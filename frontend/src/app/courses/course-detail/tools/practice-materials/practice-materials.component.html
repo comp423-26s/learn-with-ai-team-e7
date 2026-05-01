@@ -12,14 +12,14 @@
   </mat-card>
 } @else {
   <div class="practice-grid">
-    <!-- weak topics heading -->
+
     @if (weakTopics().length > 0) {
       <p class="weak-topics-heading" data-testid="weak-topics-heading">
         Targeting weak topics: {{ weakTopics().join(', ') }}
       </p>
     }
 
-    <!-- ── flashcards ─────────────────────────────────────────────────── -->
+    <!--flashcards -->
     <mat-card appearance="outlined" class="section-card">
       <mat-card-header>
         <mat-card-title>Flashcards</mat-card-title>
@@ -35,11 +35,11 @@
           <div class="flashcard" data-testid="flashcard">
             @if (!flipped()) {
               <p class="flashcard-face" data-testid="flashcard-front">
-                {{ currentFlashcard().front }}
+                {{ currentFlashcard()?.front }}
               </p>
             } @else {
               <p class="flashcard-face flashcard-back" data-testid="flashcard-back">
-                {{ currentFlashcard().back }}
+                {{ currentFlashcard()?.back }}
               </p>
             }
           </div>
@@ -55,7 +55,12 @@
               Previous
             </button>
 
-            <button mat-flat-button color="primary" data-testid="flip-btn" (click)="onFlip()">
+            <button
+              mat-flat-button
+              color="primary"
+              data-testid="flip-btn"
+              (click)="onFlip()"
+            >
               {{ flipped() ? 'Show Front' : 'Flip' }}
             </button>
 
@@ -73,7 +78,7 @@
       </mat-card-content>
     </mat-card>
 
-    <!-- ── quiz ───────────────────────────────────────────────────────── -->
+    <!--quiz -->
     <mat-card appearance="outlined" class="section-card">
       <mat-card-header>
         <mat-card-title>Practice Quiz</mat-card-title>
@@ -81,27 +86,67 @@
       <mat-card-content>
         @if (questions().length === 0) {
           <p>No quiz questions available.</p>
+        } @else if (showSummary()) {
+          <div class="summary" data-testid="summary">
+            <p class="summary-score" data-testid="summary-score">
+              You got {{ score() }} of {{ questions().length }} correct.
+            </p>
+            @if (wrongTopics().length > 0) {
+              <p class="summary-weak" data-testid="summary-weak-topics">
+                Topics to revisit: {{ wrongTopics().join(', ') }}
+              </p>
+            }
+            <button mat-flat-button color="primary" data-testid="retake-btn" (click)="onRetake()">
+              Retake Quiz
+            </button>
+          </div>
         } @else {
           <p class="question-counter" data-testid="question-counter">
             Question {{ questionIndex() + 1 }} of {{ questions().length }}
           </p>
 
-          <mat-progress-bar mode="determinate" [value]="progressPct()" data-testid="progress-bar" />
+          <mat-progress-bar
+            mode="determinate"
+            [value]="progressPct()"
+            data-testid="progress-bar"
+          />
 
           <p class="question-text" data-testid="question-text">
-            {{ currentQuestion().question_text }}
+            {{ currentQuestion()?.question_text }}
           </p>
 
-          <div class="answer-options" data-testid="answer-options">
-            <input
-              type="text"
-              placeholder="Type your answer"
+          @if (submitted()) {
+            <div
+              class="answer-reveal"
+              [class.correct]="isCorrect()"
+              [class.incorrect]="!isCorrect()"
+              data-testid="answer-reveal"
+            >
+              <p class="reveal-label">{{ isCorrect() ? 'Correct!' : 'Not quite.' }}</p>
+              <p class="reveal-answer" data-testid="correct-answer">
+                Answer: {{ currentQuestion()?.answer }}
+              </p>
+            </div>
+          } @else {
+            <textarea
+              class="answer-input"
+              data-testid="answer-input"
+              rows="3"
+              placeholder="Type your answer…"
               [value]="selectedAnswer() ?? ''"
               (input)="onSelectAnswer($any($event.target).value)"
-              [disabled]="submitted()"
-              data-testid="answer-input"
-            />
-          </div>
+            ></textarea>
+
+            <button
+              mat-flat-button
+              color="primary"
+              data-testid="check-answer-btn"
+              [disabled]="!selectedAnswer()"
+              (click)="onCheckAnswer()"
+            >
+              Check Answer
+            </button>
+          }
 
           <div class="quiz-controls">
             <button
@@ -113,35 +158,9 @@
               <mat-icon>chevron_left</mat-icon>
               Previous
             </button>
-            <button
-              mat-flat-button
-              color="primary"
-              data-testid="check-answer-btn"
-              (click)="onCheckAnswer()"
-              [disabled]="submitted() || !selectedAnswer()"
-            >
-              Check Answer
-            </button>
-            @if (submitted()) {
-              @if (isCorrect()) {
-                <p class="correct-banner" data-testid="correct-banner">Correct!</p>
-              } @else {
-                <p class="incorrect-banner" data-testid="incorrect-banner">
-                  Incorrect — the correct answer was: {{ currentQuestion().answer }}
-                </p>
-              }
 
-              <button
-                mat-stroked-button
-                data-testid="next-after-submit-btn"
-                (click)="onNextQuestion()"
-              >
-                Next Question
-              </button>
-            }
             <button
-              mat-flat-button
-              color="primary"
+              mat-stroked-button
               data-testid="next-question-btn"
               [disabled]="questionIndex() === questions().length - 1"
               (click)="onNextQuestion()"
@@ -151,26 +170,8 @@
             </button>
           </div>
         }
-
-        @if (questionIndex() === questions().length - 1 && submitted()) {
-          <div class="summary" data-testid="summary-screen">
-            <h3>Score: {{ score() }} / {{ questions().length }}</h3>
-
-            @if (wrongTopics().length > 0) {
-              <p>Topics to revisit:</p>
-              <ul>
-                @for (t of wrongTopics(); track t) {
-                  <li>{{ t }}</li>
-                }
-              </ul>
-            }
-
-            <button mat-flat-button color="primary" data-testid="retake-btn" (click)="onRetake()">
-              Retake
-            </button>
-          </div>
-        }
       </mat-card-content>
     </mat-card>
+
   </div>
 }

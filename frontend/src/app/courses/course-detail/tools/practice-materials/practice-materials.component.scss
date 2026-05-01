@@ -100,3 +100,67 @@ mat-progress-bar {
   margin-right: 8px;
   min-width: 20px;
 }
+
+.answer-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  resize: vertical;
+  margin-bottom: 12px;
+  background: transparent;
+  color: var(--mat-sys-on-surface);
+
+  &:focus {
+    outline: 2px solid var(--mat-sys-primary);
+    border-color: transparent;
+  }
+}
+
+.answer-reveal {
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+
+  &.correct {
+    background-color: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
+  }
+
+  &.incorrect {
+    background-color: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+}
+
+.reveal-label {
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+
+.reveal-answer {
+  margin: 0;
+  font-size: 14px;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.summary-score {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.summary-weak {
+  font-size: 14px;
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0;
+}

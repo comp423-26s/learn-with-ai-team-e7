@@ -113,10 +113,14 @@ export class GeneratePractice {
   }
 
   private async navigateToPracticeViewer(uploadId: number): Promise<void> {
-    await this.router.navigate(
+    const navigated = await this.router.navigate(
       ['/courses', this.courseId, 'student', 'tools', 'grading-analyzer', 'practice'],
       { queryParams: { uploadId } },
     );
+    if (!navigated) {
+      this.generateError.set('Failed to open the practice viewer. Please try again.');
+      this.generating.set(false);
+    }
   }
 
   private async loadExams(): Promise<void> {

@@ -54,16 +54,12 @@ All feature routes are children of `/courses/:id` and are lazy-loaded:
 
 **`GradingAnalyzer`** validates a picked file client-side (PDF type and ≤ 50 MB) before uploading. After a successful upload it navigates to the results page with the `uploadId` as a query param. Both the instructor and student paths load this same component; the component checks its active route to decide where to send the user afterward.
 
-![Grading Analyzer — upload step](docs/images/examupload 2.png)
-![Grading Analyzer — Analyzer step](docs/images/strengthsandweaknesses.png)
+![Grading Analyzer — upload step](images/examupload 2.png)
+![Grading Analyzer — Analyzer step](images/strengthsandweaknesses.png)
 
 **`StudentView`** is the student dashboard. When reached with an `uploadId` query param it polls the analysis endpoint every two seconds for up to 30 attempts while displaying a spinner. It also listens on the WebSocket for `exam_analysis` job completions so the dashboard refreshes automatically. The result is a progress ring for overall score and a topic list labeled as strengths, needs review, or weak.
 
-![Student dashboard — analysis results](docs/images/studentdashboard.png)
-
-**`PracticeMaterialsComponent`** loads flashcards for a given `uploadId` and presents them as a flip-card interface with Previous / Flip / Next controls.
-
-![Practice materials — flashcards](docs/images/flashcards.png)
+![Student dashboard — analysis results](images/studentdashboard.png)
 
 ### Frontend Services
 
@@ -204,15 +200,15 @@ Frontend fetches GET /courses/{id}/exam-pdfs/{upload_id}/practice
 
 From **Student Tools**, the student selects **Grading Analyzer** and picks a graded exam PDF from their device. The form validates file type and size before uploading.
 
-![Grading Analyzer — upload step](images/grading-analyzer-upload.png)
+![Grading Analyzer — upload step](images/examupload 2.png)
 
 After upload, the student dashboard polls for the analysis result. Once ready, it shows an overall score ring and a topic breakdown.
 
-![Student dashboard — analysis results](images/student-dashboard.png)
+![Student dashboard — analysis results](images/studentdashboard.png)
 
 From there, the student can generate practice materials. The backend produces flashcards targeting their weak topics; the frontend presents them as a flip-card interface.
 
-![Practice materials — flashcards](images/practice-materials.png)
+![Practice materials — flashcards](images/flashcards.png)
 
 ---
 

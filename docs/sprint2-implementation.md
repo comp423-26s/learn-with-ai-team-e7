@@ -54,7 +54,7 @@ All feature routes are children of `/courses/:id` and are lazy-loaded:
 
 **`GradingAnalyzer`** validates a picked file client-side (PDF type and ≤ 50 MB) before uploading. After a successful upload it navigates to the results page with the `uploadId` as a query param. Both the instructor and student paths load this same component; the component checks its active route to decide where to send the user afterward.
 
-![Grading Analyzer — upload step](images/examupload 2.png)
+![Grading Analyzer — upload step](images/examupload.png)
 ![Grading Analyzer — Analyzer step](images/strengthsandweaknesses.png)
 
 **`StudentView`** is the student dashboard. When reached with an `uploadId` query param it polls the analysis endpoint every two seconds for up to 30 attempts while displaying a spinner. It also listens on the WebSocket for `exam_analysis` job completions so the dashboard refreshes automatically. The result is a progress ring for overall score and a topic list labeled as strengths, needs review, or weak.
@@ -200,7 +200,7 @@ Frontend fetches GET /courses/{id}/exam-pdfs/{upload_id}/practice
 
 From **Student Tools**, the student selects **Grading Analyzer** and picks a graded exam PDF from their device. The form validates file type and size before uploading.
 
-![Grading Analyzer — upload step](images/examupload 2.png)
+![Grading Analyzer — upload step](images/examupload2.png)
 
 After upload, the student dashboard polls for the analysis result. Once ready, it shows an overall score ring and a topic breakdown.
 

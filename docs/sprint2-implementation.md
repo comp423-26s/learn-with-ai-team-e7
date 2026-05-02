@@ -4,12 +4,12 @@ This document explains how the two features implemented in Sprints 1 and 2 work 
 
 ## Authors
 
-| Name | GitHub |
-|------|--------|
+| Name           | GitHub                                             |
+| -------------- | -------------------------------------------------- |
 | Bettina George | [@BettinaGeorge](https://github.com/BettinaGeorge) |
-| Celine Keles | [@ceseke](https://github.com/ceseke) |
-| Ishi Varshney | [@ishiv101](https://github.com/ishiv101) |
-| Tiffany Meng | [@ttmeng](https://github.com/ttmeng) |
+| Celine Keles   | [@ceseke](https://github.com/ceseke)               |
+| Ishi Varshney  | [@ishiv101](https://github.com/ishiv101)           |
+| Tiffany Meng   | [@ttmeng](https://github.com/ttmeng)               |
 
 ---
 
@@ -54,15 +54,16 @@ All feature routes are children of `/courses/:id` and are lazy-loaded:
 
 **`GradingAnalyzer`** validates a picked file client-side (PDF type and ≤ 50 MB) before uploading. After a successful upload it navigates to the results page with the `uploadId` as a query param. Both the instructor and student paths load this same component; the component checks its active route to decide where to send the user afterward.
 
-![Grading Analyzer — upload step](images/grading-analyzer-upload.png)
+![Grading Analyzer — upload step](docs/images/examupload 2.png)
+![Grading Analyzer — Analyzer step](docs/images/strengthsandweaknesses.png)
 
 **`StudentView`** is the student dashboard. When reached with an `uploadId` query param it polls the analysis endpoint every two seconds for up to 30 attempts while displaying a spinner. It also listens on the WebSocket for `exam_analysis` job completions so the dashboard refreshes automatically. The result is a progress ring for overall score and a topic list labeled as strengths, needs review, or weak.
 
-![Student dashboard — analysis results](images/student-dashboard.png)
+![Student dashboard — analysis results](docs/images/studentdashboard.png)
 
 **`PracticeMaterialsComponent`** loads flashcards for a given `uploadId` and presents them as a flip-card interface with Previous / Flip / Next controls.
 
-![Practice materials — flashcards](images/practice-materials.png)
+![Practice materials — flashcards](docs/images/flashcards.png)
 
 ### Frontend Services
 
@@ -79,25 +80,25 @@ All routes are mounted under `/api`. Route handlers stay thin — they validate 
 
 ### Exam PDF and Practice Routes
 
-| Method | Path | Notes |
-|--------|------|-------|
-| `POST` | `/courses/{course_id}/exam-pdfs` | Validates content type, extension, size, and PDF header. Returns 202. |
-| `GET` | `/courses/{course_id}/exam-pdfs` | Lists the authenticated student's uploads, newest first. |
-| `GET` | `/courses/{course_id}/exam-pdfs/{upload_id}/analysis` | Returns `ExamAnalysisSummary`. Returns 404 if analysis is not ready. |
+| Method | Path                                                  | Notes                                                                 |
+| ------ | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| `POST` | `/courses/{course_id}/exam-pdfs`                      | Validates content type, extension, size, and PDF header. Returns 202. |
+| `GET`  | `/courses/{course_id}/exam-pdfs`                      | Lists the authenticated student's uploads, newest first.              |
+| `GET`  | `/courses/{course_id}/exam-pdfs/{upload_id}/analysis` | Returns `ExamAnalysisSummary`. Returns 404 if analysis is not ready.  |
 | `POST` | `/courses/{course_id}/exam-pdfs/{upload_id}/practice` | Idempotent. Returns cached materials (200) or queues a new job (202). |
-| `GET` | `/courses/{course_id}/exam-pdfs/{upload_id}/practice` | Returns generated flashcards and topic list. |
+| `GET`  | `/courses/{course_id}/exam-pdfs/{upload_id}/practice` | Returns generated flashcards and topic list.                          |
 
 ### Key Request and Response Models
 
 
 **Exam PDF / Practice:**
 
-| Model | Key Fields |
-|-------|-----------|
-| `ExamPdfUploadResponse` | `id`, `storage_key`, `original_filename`, `job?` |
-| `ExamPdfHistoryItem` | `id`, `original_filename`, `uploaded_at`, `has_analysis`, `has_practice` |
-| `ExamPdfAnalysisResponse` | `upload_id`, `analysis_data` (`ExamAnalysisSummary`) |
-| `PracticeMaterialResponse` | `upload_id`, `weak_topics`, `flashcards` |
+| Model                      | Key Fields                                                               |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `ExamPdfUploadResponse`    | `id`, `storage_key`, `original_filename`, `job?`                         |
+| `ExamPdfHistoryItem`       | `id`, `original_filename`, `uploaded_at`, `has_analysis`, `has_practice` |
+| `ExamPdfAnalysisResponse`  | `upload_id`, `analysis_data` (`ExamAnalysisSummary`)                     |
+| `PracticeMaterialResponse` | `upload_id`, `weak_topics`, `flashcards`                                 |
 
 ### Dependency Injection and Transactions
 
@@ -127,12 +128,12 @@ The base class `BaseJobHandler` manages the session lifecycle, the `PROCESSING` 
 
 `AiCompletionService` (`services/ai_completion_service.py`) wraps the OpenAI Python SDK configured for Azure. Its single public method, `complete(system_prompt, user_prompt)`, calls the chat completions endpoint and returns the model's response as a string. Every AI-backed feature routes through this wrapper.
 
-| Environment Variable | Default | Purpose |
-|----------------------|---------|---------|
-| `OPENAI_API_KEY` / `AZURE_OPENAI_API_KEY` | — | Azure API key |
-| `OPENAI_MODEL` / `AZURE_OPENAI_DEPLOYMENT` | `gpt-5-mini` | Model deployment name |
-| `OPENAI_ENDPOINT` | `https://azureaiapi.cloud.unc.edu` | Azure endpoint |
-| `OPENAI_API_VERSION` | `2025-04-01-preview` | API version |
+| Environment Variable                       | Default                            | Purpose               |
+| ------------------------------------------ | ---------------------------------- | --------------------- |
+| `OPENAI_API_KEY` / `AZURE_OPENAI_API_KEY`  | —                                  | Azure API key         |
+| `OPENAI_MODEL` / `AZURE_OPENAI_DEPLOYMENT` | `gpt-5-mini`                       | Model deployment name |
+| `OPENAI_ENDPOINT`                          | `https://azureaiapi.cloud.unc.edu` | Azure endpoint        |
+| `OPENAI_API_VERSION`                       | `2025-04-01-preview`               | API version           |
 
 ---
 

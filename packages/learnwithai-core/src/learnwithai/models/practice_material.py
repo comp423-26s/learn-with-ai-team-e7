@@ -24,6 +24,7 @@ class PracticeQuestion(BaseModel):
 
     question_text: str = Field(min_length=1)
     answer: str = Field(min_length=1)
+    choices: list[str] = Field(default_factory=list)
     topic: str = Field(min_length=1)
     difficulty: DifficultyLabel = "medium"
 

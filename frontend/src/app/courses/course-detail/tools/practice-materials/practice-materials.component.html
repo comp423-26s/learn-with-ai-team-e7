@@ -118,14 +118,19 @@
               </p>
             </div>
           } @else {
-            <textarea
-              class="answer-input"
-              data-testid="answer-input"
-              rows="3"
-              placeholder="Type your answer…"
-              [value]="selectedAnswer() ?? ''"
-              (input)="onSelectAnswer($any($event.target).value)"
-            ></textarea>
+            <div class="choices-list" data-testid="choices-list">
+              @for (choice of currentQuestion().choices; track choice) {
+                <button
+                  mat-stroked-button
+                  class="choice-btn"
+                  [class.selected]="selectedAnswer() === choice"
+                  (click)="onSelectAnswer(choice)"
+                  data-testid="choice-btn"
+                >
+                  {{ choice }}
+                </button>
+              }
+            </div>
 
             <button
               mat-flat-button

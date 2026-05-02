@@ -95,9 +95,11 @@ class PracticeMaterialService:
         return (
             "You are a practice material generator. Your task is to return ONLY a JSON object with exactly 3 top-level fields:\n"
             "1. weak_topics (copy from input)\n"
-            "2. questions (array of practice questions)\n"
+            "2. questions (array of multiple-choice practice questions)\n"
             "3. flashcards (array of flashcards)\n\n"
-            "Each question object must have: question_text, answer, topic, difficulty.\n"
+            "Each question object must have: question_text, answer, choices, topic, difficulty.\n"
+            "  - answer: the correct answer as a plain string.\n"
+            "  - choices: a list of exactly 4 strings. One must match answer exactly. The other 3 are plausible but wrong. Shuffle the order so the correct answer is not always first.\n"
             "Each flashcard must have: front, back, topic.\n"
             "Provide 5 questions per weak topic (not total, per topic).\n"
             "Provide 5 flashcards per weak topic (not total, per topic).\n"
@@ -113,7 +115,8 @@ class PracticeMaterialService:
                 "questions": [
                     {
                         "question_text": "string",
-                        "answer": "string",
+                        "answer": "string (the correct choice, verbatim)",
+                        "choices": ["string (4 options, one matches answer, shuffled)"],
                         "topic": "string",
                         "difficulty": "easy|medium|hard",
                     }
@@ -204,10 +207,17 @@ class PracticeMaterialService:
 
         for topic in topics:
             for index in range(5):
+                correct = self._fallback_question_answer(topic, exam_excerpt)
                 questions.append(
                     PracticeQuestion(
                         question_text=self._fallback_question_text(topic, index, exam_excerpt),
-                        answer=self._fallback_question_answer(topic, exam_excerpt),
+                        answer=correct,
+                        choices=[
+                            correct,
+                            f"Review the exam's general content related to {topic.lower()}.",
+                            f"Focus on key definitions and concepts in {topic.lower()}.",
+                            f"Consult your notes on {topic.lower()} for more detail.",
+                        ],
                         topic=topic,
                         difficulty=self._difficulty_for_index(index),
                     )

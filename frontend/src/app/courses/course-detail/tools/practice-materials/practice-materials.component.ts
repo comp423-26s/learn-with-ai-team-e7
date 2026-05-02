@@ -134,6 +134,8 @@ export class PracticeMaterialsComponent implements OnInit {
     if (this.questionIndex() < this.questions().length - 1) {
       this.questionIndex.update((i) => i + 1);
       this.selectedAnswer.set(null);
+      this.submitted.set(false);
+      this.isCorrect.set(null);
     }
   }
 
@@ -141,6 +143,8 @@ export class PracticeMaterialsComponent implements OnInit {
     if (this.questionIndex() > 0) {
       this.questionIndex.update((i) => i - 1);
       this.selectedAnswer.set(null);
+      this.submitted.set(false);
+      this.isCorrect.set(null);
     }
   }
 

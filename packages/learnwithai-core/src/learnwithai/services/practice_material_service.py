@@ -93,13 +93,15 @@ class PracticeMaterialService:
 
     def _system_prompt(self) -> str:
         return (
-            "You are a practice material generator. Your task is to return ONLY a JSON object with exactly 3 top-level fields:\n"
+            "You are a practice material generator."
+            "Your task is to return ONLY a JSON object with exactly 3 top-level fields:\n"
             "1. weak_topics (copy from input)\n"
             "2. questions (array of multiple-choice practice questions)\n"
             "3. flashcards (array of flashcards)\n\n"
             "Each question object must have: question_text, answer, choices, topic, difficulty.\n"
             "  - answer: the correct answer as a plain string.\n"
-            "  - choices: a list of exactly 4 strings. One must match answer exactly. The other 3 are plausible but wrong. Shuffle the order so the correct answer is not always first.\n"
+            "  - choices: a list of exactly 4 strings. One must match answer exactly."
+            "The other 3 are plausible but wrong. Shuffle the order so the correct answer is not always first.\n"
             "Each flashcard must have: front, back, topic.\n"
             "Provide 5 questions per weak topic (not total, per topic).\n"
             "Provide 5 flashcards per weak topic (not total, per topic).\n"
@@ -162,13 +164,17 @@ class PracticeMaterialService:
         try:
             parsed = PracticeMaterialSet.model_validate(loaded)
         except ValidationError as ve:
-            msg = f"PracticeMaterialSet validation failed for upload {upload_id}. Data: {json.dumps(loaded)[:300]}; Errors: {str(ve)[:200]}"
+            msg = (
+                "PracticeMaterialSet validation failed for upload {upload_id}. Data: {json.dumps(loaded)[:300]};"
+                f"Errors: {str(ve)[:200]}"
+            )
             print(f"PARSE_ERROR: {msg}", flush=True)
             self._logger.warning(msg)
             return None
 
         print(
-            f"SUCCESS: Parsed practice materials for upload {upload_id}: {len(parsed.questions)} questions, {len(parsed.flashcards)} flashcards",
+            f"SUCCESS: Parsed practice materials for upload {upload_id}: {len(parsed.questions)} questions,"
+            f" {len(parsed.flashcards)} flashcards",
             flush=True,
         )
         return parsed

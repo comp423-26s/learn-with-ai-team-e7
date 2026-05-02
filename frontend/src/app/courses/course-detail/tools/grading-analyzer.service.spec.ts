@@ -120,8 +120,9 @@ describe('GradingAnalyzerService', () => {
 
     const result = await service.getLatestAnalysis(1);
 
-    expect(result?.headline).toBe('Well done!');
-    expect(result?.strengths[0].topic).toBe('Algebra');
+    expect(result?.analysis.headline).toBe('Well done!');
+    expect(result?.analysis.strengths[0].topic).toBe('Algebra');
+    expect(result?.uploadId).toBe(8);
   });
 
   it('getLatestAnalysis returns null when no upload has an analysis', async () => {

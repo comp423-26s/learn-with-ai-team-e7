@@ -19,9 +19,11 @@ const flush = () => new Promise((resolve) => setTimeout(resolve));
 type SetupOptions = {
   courseId?: string | null;
   uploadId?: string | null;
-  latestAnalysis?: ExamAnalysisSummary | null;
+  latestAnalysis?: { analysis: ExamAnalysisSummary; uploadId: number } | null;
+  latestAnalysisUploadId?: number;
   pollAnalysis?: ExamAnalysisSummary | null;
   cachedAnalysis?: ExamAnalysisSummary | null;
+  cachedAnalysisUploadId?: number;
 };
 
 describe('StudentView', () => {
@@ -30,7 +32,9 @@ describe('StudentView', () => {
     const layoutNavigation = { clearContext: vi.fn() };
 
     const gradingAnalyzerService = {
-      getLatestAnalysis: vi.fn(() => Promise.resolve(options.latestAnalysis ?? null)),
+      getLatestAnalysis: vi.fn(() =>
+        Promise.resolve(options.latestAnalysis ?? (options.latestAnalysis === null ? null : null)),
+      ),
       getExamAnalysis: vi.fn(() => Promise.resolve(options.pollAnalysis ?? null)),
     };
 
@@ -68,7 +72,7 @@ describe('StudentView', () => {
 
     if (options.cachedAnalysis != null) {
       const stateService = TestBed.inject(StudentDashboardStateService);
-      stateService.setAnalysis(1, options.cachedAnalysis);
+      stateService.setAnalysis(1, options.cachedAnalysisUploadId ?? 0, options.cachedAnalysis);
     }
 
     const fixture = TestBed.createComponent(StudentView);
@@ -111,7 +115,9 @@ describe('StudentView', () => {
       ],
     };
 
-    const { fixture, pageTitle, layoutNavigation } = await setup({ latestAnalysis: analysis });
+    const { fixture, pageTitle, layoutNavigation } = await setup({
+      latestAnalysis: { analysis, uploadId: 10 },
+    });
 
     expect(layoutNavigation.clearContext).toHaveBeenCalled();
     expect(pageTitle.setTitle).toHaveBeenCalledWith('Student Dashboard');
@@ -195,7 +201,7 @@ describe('StudentView', () => {
     await setup({ latestAnalysis: analysis });
 
     const stateService = TestBed.inject(StudentDashboardStateService);
-    expect(stateService.getAnalysis(1)).toEqual(analysis);
+    expect(stateService.getAnalysis(1, 9)).toEqual(analysis);
   });
 
   it('refreshes dashboard when an exam analysis job completes', async () => {
@@ -212,7 +218,10 @@ describe('StudentView', () => {
     });
 
     // Replace the mock implementation mid-test to return refreshAnalysis on next call
-    gradingAnalyzerService.getLatestAnalysis.mockResolvedValueOnce(refreshAnalysis);
+    gradingAnalyzerService.getLatestAnalysis.mockResolvedValueOnce({
+      analysis: refreshAnalysis,
+      uploadId: 11,
+    });
 
     updatesSignal.set(
       new Map([
@@ -276,7 +285,7 @@ describe('StudentView', () => {
     };
 
     const { fixture, gradingAnalyzerService } = await setup({
-      latestAnalysis: refreshedAnalysis,
+      latestAnalysis: { analysis: refreshedAnalysis, uploadId: 12 },
     });
 
     expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);

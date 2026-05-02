@@ -72,14 +72,18 @@ export class GradingAnalyzerService {
   }
 
   /** fetch the most recent exam analysis for a student in a course, or null if none exists. */
-  async getLatestAnalysis(courseId: number): Promise<ExamAnalysisSummary | null> {
+  async getLatestAnalysis(
+    courseId: number,
+  ): Promise<{ analysis: ExamAnalysisSummary; uploadId: number } | null> {
     try {
       const { listExamPdfUploads } =
         await import('../../../api/generated/fn/exam-pd-fs/list-exam-pdf-uploads');
       const uploads = await this.api.invoke(listExamPdfUploads, { course_id: courseId });
       const latestWithAnalysis = uploads.find((u: { has_analysis: boolean }) => u.has_analysis);
       if (!latestWithAnalysis) return null;
-      return this.getExamAnalysis(courseId, latestWithAnalysis.id);
+      const analysis = await this.getExamAnalysis(courseId, latestWithAnalysis.id);
+      if (!analysis) return null;
+      return { analysis, uploadId: latestWithAnalysis.id };
     } catch {
       return null;
     }

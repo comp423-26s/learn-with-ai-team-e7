@@ -142,14 +142,14 @@ export class StudentView implements OnDestroy {
       this.analysisLoading.set(true);
       const analysis = await this.pollForAnalysis(this.courseId, uploadId);
       if (analysis !== null) {
-        this.dashboardState.setAnalysis(this.courseId, analysis);
+        this.dashboardState.setAnalysis(this.courseId, uploadId, analysis);
         this.applyAnalysis(analysis);
       } else {
         await this.refreshLatestAnalysis();
       }
       this.analysisLoading.set(false);
     } else {
-      const cached = this.dashboardState.getAnalysis(this.courseId);
+      const cached = this.dashboardState.getAnalysis(this.courseId, 0);
       if (cached) {
         this.applyAnalysis(cached);
       } else {
@@ -165,11 +165,13 @@ export class StudentView implements OnDestroy {
   }
 
   private async refreshLatestAnalysis(): Promise<void> {
-    const analysis = await this.gradingAnalyzerService.getLatestAnalysis(this.courseId);
-    if (analysis !== null) {
-      this.dashboardState.setAnalysis(this.courseId, analysis);
+    const result = await this.gradingAnalyzerService.getLatestAnalysis(this.courseId);
+    if (result !== null) {
+      this.dashboardState.setAnalysis(this.courseId, result.uploadId, result.analysis);
+      this.applyAnalysis(result.analysis);
+    } else {
+      this.applyAnalysis(null);
     }
-    this.applyAnalysis(analysis);
   }
 
   private analysisToTopics(analysis: ExamAnalysisSummary): StudentTopicAnalysis[] {

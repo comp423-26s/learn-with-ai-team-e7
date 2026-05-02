@@ -52,10 +52,7 @@ def generate_practice_materials(
     """
     _get_authorized_upload(subject, course, upload_id, membership_repo, exam_pdf_upload_repo)
 
-    existing = practice_material_repo.get_by_upload_id(upload_id)
-    if existing is not None:
-        return _build_practice_material_response(existing)
-
+    # Always enqueue a regeneration job; do not short-circuit with cached materials.
     assert course.id is not None
     job_input = PracticeMaterialJobInput(upload_id=upload_id, student_pid=subject.pid, course_id=course.id)
     async_job = async_job_repo.create(
@@ -69,8 +66,9 @@ def generate_practice_materials(
     )
     assert async_job.id is not None
     job_queue.enqueue(PracticeMaterialJob(job_id=async_job.id))
+    # Indicate the request was accepted for processing.
     response.status_code = 202
-    return PracticeMaterialGenerateResponse(job_id=async_job.id, status=async_job.status)
+    return PracticeMaterialGenerateResponse(job_id=async_job.id, status=AsyncJobStatus.PENDING)
 
 
 @router.get(

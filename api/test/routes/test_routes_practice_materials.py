@@ -128,6 +128,9 @@ def test_generate_practice_materials_returns_existing_material_idempotently() ->
     upload_repo.get_by_id.return_value = _stub_upload()
     practice_repo.get_by_upload_id.return_value = _stub_material(material_id=99)
 
+    # Even if materials already exist, always enqueue a regeneration job now.
+    async_job_repo.create.return_value = _stub_async_job(job_id=88)
+
     result = generate_practice_materials(
         subject,
         course,
@@ -140,13 +143,12 @@ def test_generate_practice_materials_returns_existing_material_idempotently() ->
         job_queue,
     )
 
-    assert isinstance(result, PracticeMaterialResponse)
-    assert result.id == 99
-    assert result.upload_id == 22
-    assert result.weak_topics == ["Geometry"]
-    assert response.status_code == 200
-    async_job_repo.create.assert_not_called()
-    job_queue.enqueue.assert_not_called()
+    assert isinstance(result, PracticeMaterialGenerateResponse)
+    assert result.job_id == 88
+    assert result.status == AsyncJobStatus.PENDING
+    assert response.status_code == 202
+    async_job_repo.create.assert_called_once()
+    job_queue.enqueue.assert_called_once()
 
 
 def test_get_practice_materials_returns_generated_material() -> None:

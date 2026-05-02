@@ -612,7 +612,7 @@ describe('ExamHistory', () => {
       // Analysis is now shown and processing indicator is gone
       expect(fixture.nativeElement.textContent).toContain('Good job!');
       expect(fixture.nativeElement.textContent).not.toContain('Analyzing your exam');
-      expect(stubs.dashboardState.setAnalysis).toHaveBeenCalledWith(1, mockAnalysis);
+      expect(stubs.dashboardState.setAnalysis).toHaveBeenCalledWith(1, 1, mockAnalysis);
     });
 
     it('should not poll when upload already has analysis', async () => {

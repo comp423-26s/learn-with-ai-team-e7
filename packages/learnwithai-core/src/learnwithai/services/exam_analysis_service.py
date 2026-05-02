@@ -56,6 +56,7 @@ class ExamAnalysisService:
         Raises:
             ValueError: If no questions are provided.
         """
+        print("DEBUG: Tiffany is here", flush=True)
         extracted = self._exam_pdf_text_repo.get_by_upload_id(upload_id)
         context = extracted.extracted_text if extracted is not None else ""
         return self.analyze_questions(questions, exam_context=context)

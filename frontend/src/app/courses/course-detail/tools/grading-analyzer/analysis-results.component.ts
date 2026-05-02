@@ -74,7 +74,7 @@ export class AnalysisResultsComponent implements OnInit {
     // if polling failed, try dashboard cache as fallback (useful if cache was populated
     // from a recent exam upload while this page was loading)
     if (!analysis) {
-      analysis = this.dashboardState.getAnalysis(this.courseId) ?? null;
+      analysis = this.dashboardState.getAnalysis(this.courseId, uploadId) ?? null;
     }
 
     if (analysis === null) {

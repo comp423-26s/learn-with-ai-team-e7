@@ -7,202 +7,196 @@
   <p role="alert">{{ errorMessage() }}</p>
 }
 
-@if (loading()) {
-  <mat-progress-bar mode="indeterminate" aria-label="Loading student dashboard analysis" />
-} @else {
-  <section class="space-y-6" aria-label="Student analysis dashboard">
-    <mat-card appearance="outlined">
-      <mat-card-content class="grid gap-6 p-6 lg:grid-cols-[220px_1fr] lg:items-center">
-        <div class="flex justify-center">
+<section class="space-y-6" aria-label="Student analysis dashboard">
+  <mat-card appearance="outlined">
+    <mat-card-content class="grid gap-6 p-6 lg:grid-cols-[220px_1fr] lg:items-center">
+      <div class="flex justify-center">
+        <div
+          class="flex h-40 w-40 items-center justify-center rounded-full p-4 shadow-sm"
+          [style.background]="progressRingBackground()"
+          aria-label="Latest exam score ring"
+        >
           <div
-            class="flex h-40 w-40 items-center justify-center rounded-full p-4 shadow-sm"
-            [style.background]="progressRingBackground()"
-            aria-label="Latest exam score ring"
+            class="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center"
           >
-            <div
-              class="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center"
-            >
-              <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">
-                Latest exam score
-              </p>
-              <p class="text-3xl font-semibold">{{ overallScore() * 100 | number: '1.0-0' }}%</p>
-            </div>
+            <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">
+              Latest exam score
+            </p>
+            <p class="text-3xl font-semibold">{{ overallScore() * 100 | number: '1.0-0' }}%</p>
           </div>
         </div>
+      </div>
 
-        <div class="space-y-3">
-          <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">Exam insights</p>
-          <h2 class="text-3xl leading-tight font-semibold">Latest uploaded exam analysis</h2>
-          <p class="max-w-2xl text-base text-slate-600">
-            Review strengths and weaknesses from your analyzed exam uploads to focus your next study
-            session.
-          </p>
-          <div class="flex flex-wrap gap-3 pt-2">
-            <span
-              class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-800"
-            >
-              {{ strengths().length }} strengths
-            </span>
-            <span class="rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800">
-              {{ weaknesses().length }} weaknesses
-            </span>
-          </div>
+      <div class="space-y-3">
+        <p class="text-sm font-medium tracking-wide text-slate-500 uppercase">Exam insights</p>
+        <h2 class="text-3xl leading-tight font-semibold">Latest uploaded exam analysis</h2>
+        <p class="max-w-2xl text-base text-slate-600">
+          Review strengths and weaknesses from your analyzed exam uploads to focus your next study
+          session.
+        </p>
+        <div class="flex flex-wrap gap-3 pt-2">
+          <span class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-800">
+            {{ strengths().length }} strengths
+          </span>
+          <span class="rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800">
+            {{ weaknesses().length }} weaknesses
+          </span>
         </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  @if (analysisLoading()) {
+    <mat-card appearance="outlined" aria-label="Exam analysis loading">
+      <mat-card-content class="p-4">
+        <p class="mb-2 text-sm text-slate-600">Analyzing your exam — this may take a moment…</p>
+        <mat-progress-bar mode="indeterminate" aria-label="Processing exam analysis" />
       </mat-card-content>
     </mat-card>
+  }
 
-    @if (analysisLoading()) {
-      <mat-card appearance="outlined" aria-label="Exam analysis loading">
-        <mat-card-content class="p-4">
-          <p class="mb-2 text-sm text-slate-600">Analyzing your exam — this may take a moment…</p>
-          <mat-progress-bar mode="indeterminate" aria-label="Processing exam analysis" />
-        </mat-card-content>
-      </mat-card>
-    }
-
-    @if (examAnalysis()) {
-      <mat-card appearance="outlined" aria-label="Latest exam analysis">
-        <mat-card-header>
-          <mat-card-title>Latest Exam Analysis</mat-card-title>
-          @if (examAnalysis()!.headline) {
-            <mat-card-subtitle>{{ examAnalysis()!.headline }}</mat-card-subtitle>
-          }
-        </mat-card-header>
-        <mat-card-content>
-          @if (examAnalysisTopics().length === 0) {
-            <p class="text-sm opacity-75">No topic data available in this analysis.</p>
-          } @else {
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-left">
-                  <th class="pb-2 font-medium">Topic</th>
-                  <th class="pb-2 font-medium">Performance</th>
-                  <th class="pb-2 font-medium">Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (topic of examAnalysisTopics(); track topic.topic) {
-                  <tr>
-                    <td class="py-1">{{ topic.topic }}</td>
-                    <td class="py-1">{{ topic.performance }}</td>
-                    <td class="py-1">{{ (topic.average_score_pct * 100).toFixed(1) }}%</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          }
-        </mat-card-content>
-      </mat-card>
-    }
-
-    <div class="grid gap-4 lg:grid-cols-2">
-      <mat-card appearance="outlined" aria-label="Strength topics">
-        <mat-card-header>
-          <mat-card-title>Strengths</mat-card-title>
-          <mat-card-subtitle>Topics where exam performance is strongest</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          @if (strengths().length > 0) {
-            <ul class="space-y-3">
-              @for (topic of strengths(); track topic.id) {
-                <li class="rounded-lg border border-emerald-200 p-3">
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="font-medium">{{ topic.topic }}</p>
-                    <span
-                      class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
-                    >
-                      Strength
-                    </span>
-                  </div>
-                  <p class="mt-2 text-sm opacity-80">
-                    {{
-                      topic.feedbackAvailable
-                        ? 'Included in analyzed exam feedback'
-                        : 'Strong performance'
-                    }}
-                  </p>
-                </li>
-              }
-            </ul>
-          } @else {
-            <p class="text-sm opacity-75">
-              No strengths identified yet. Upload and analyze an exam to view strengths.
-            </p>
-          }
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card appearance="outlined" aria-label="Weakness topics">
-        <mat-card-header>
-          <mat-card-title>Weaknesses</mat-card-title>
-          <mat-card-subtitle>Topics that need more review from recent analysis</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          @if (weaknesses().length > 0) {
-            <ul class="space-y-3">
-              @for (topic of weaknesses(); track topic.id) {
-                <li class="rounded-lg border border-amber-200 p-3">
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="font-medium">{{ topic.topic }}</p>
-                    <span
-                      class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900"
-                    >
-                      Weakness
-                    </span>
-                  </div>
-                  <p class="mt-2 text-sm opacity-80">Needs additional review.</p>
-                </li>
-              }
-            </ul>
-          } @else {
-            <p class="text-sm opacity-75">No weaknesses identified in your latest analyzed exam.</p>
-          }
-        </mat-card-content>
-      </mat-card>
-    </div>
-
-    <mat-card appearance="outlined" aria-label="Topic breakdown">
+  @if (examAnalysis()) {
+    <mat-card appearance="outlined" aria-label="Latest exam analysis">
       <mat-card-header>
-        <mat-card-title>Topic breakdown</mat-card-title>
-        <mat-card-subtitle>Score by topic from latest analyzed exam</mat-card-subtitle>
+        <mat-card-title>Latest Exam Analysis</mat-card-title>
+        @if (examAnalysis()!.headline) {
+          <mat-card-subtitle>{{ examAnalysis()!.headline }}</mat-card-subtitle>
+        }
       </mat-card-header>
       <mat-card-content>
-        @if (topics().length > 0) {
-          <ul class="space-y-4">
-            @for (topic of topics(); track topic.id) {
-              <li>
-                <div class="mb-2 flex items-center justify-between gap-3">
+        @if (examAnalysisTopics().length === 0) {
+          <p class="text-sm opacity-75">No topic data available in this analysis.</p>
+        } @else {
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left">
+                <th class="pb-2 font-medium">Topic</th>
+                <th class="pb-2 font-medium">Performance</th>
+                <th class="pb-2 font-medium">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (topic of examAnalysisTopics(); track topic.topic) {
+                <tr>
+                  <td class="py-1">{{ topic.topic }}</td>
+                  <td class="py-1">{{ topic.performance }}</td>
+                  <td class="py-1">{{ (topic.average_score_pct * 100).toFixed(1) }}%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <div class="grid gap-4 lg:grid-cols-2">
+    <mat-card appearance="outlined" aria-label="Strength topics">
+      <mat-card-header>
+        <mat-card-title>Strengths</mat-card-title>
+        <mat-card-subtitle>Topics where exam performance is strongest</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (strengths().length > 0) {
+          <ul class="space-y-3">
+            @for (topic of strengths(); track topic.id) {
+              <li class="rounded-lg border border-emerald-200 p-3">
+                <div class="flex items-center justify-between gap-2">
                   <p class="font-medium">{{ topic.topic }}</p>
                   <span
-                    class="rounded-full px-2 py-1 text-xs font-medium"
-                    [class.bg-emerald-100]="topic.label === 'strength'"
-                    [class.text-emerald-800]="topic.label === 'strength'"
-                    [class.bg-amber-100]="topic.label === 'weakness'"
-                    [class.text-amber-900]="topic.label === 'weakness'"
+                    class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
                   >
-                    {{ topic.label === 'strength' ? 'Strength' : 'Weakness' }}
+                    Strength
                   </span>
                 </div>
-                <div class="h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
-                  <div
-                    class="h-full rounded-full"
-                    [class.bg-emerald-500]="topic.label === 'strength'"
-                    [class.bg-amber-500]="topic.label === 'weakness'"
-                    [style.width.%]="topic.completionPercent"
-                  ></div>
-                </div>
-                <p class="mt-1 text-sm opacity-80">
-                  {{ topic.completionPercent | number: '1.0-0' }}% score
+                <p class="mt-2 text-sm opacity-80">
+                  {{
+                    topic.feedbackAvailable
+                      ? 'Included in analyzed exam feedback'
+                      : 'Strong performance'
+                  }}
                 </p>
               </li>
             }
           </ul>
         } @else {
           <p class="text-sm opacity-75">
-            No analyzed exam data is available yet. Upload an exam to see topic performance.
+            No strengths identified yet. Upload and analyze an exam to view strengths.
           </p>
         }
       </mat-card-content>
     </mat-card>
-  </section>
-}
+
+    <mat-card appearance="outlined" aria-label="Weakness topics">
+      <mat-card-header>
+        <mat-card-title>Weaknesses</mat-card-title>
+        <mat-card-subtitle>Topics that need more review from recent analysis</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (weaknesses().length > 0) {
+          <ul class="space-y-3">
+            @for (topic of weaknesses(); track topic.id) {
+              <li class="rounded-lg border border-amber-200 p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="font-medium">{{ topic.topic }}</p>
+                  <span
+                    class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900"
+                  >
+                    Weakness
+                  </span>
+                </div>
+                <p class="mt-2 text-sm opacity-80">Needs additional review.</p>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-sm opacity-75">No weaknesses identified in your latest analyzed exam.</p>
+        }
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <mat-card appearance="outlined" aria-label="Topic breakdown">
+    <mat-card-header>
+      <mat-card-title>Topic breakdown</mat-card-title>
+      <mat-card-subtitle>Score by topic from latest analyzed exam</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      @if (topics().length > 0) {
+        <ul class="space-y-4">
+          @for (topic of topics(); track topic.id) {
+            <li>
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <p class="font-medium">{{ topic.topic }}</p>
+                <span
+                  class="rounded-full px-2 py-1 text-xs font-medium"
+                  [class.bg-emerald-100]="topic.label === 'strength'"
+                  [class.text-emerald-800]="topic.label === 'strength'"
+                  [class.bg-amber-100]="topic.label === 'weakness'"
+                  [class.text-amber-900]="topic.label === 'weakness'"
+                >
+                  {{ topic.label === 'strength' ? 'Strength' : 'Weakness' }}
+                </span>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                <div
+                  class="h-full rounded-full"
+                  [class.bg-emerald-500]="topic.label === 'strength'"
+                  [class.bg-amber-500]="topic.label === 'weakness'"
+                  [style.width.%]="topic.completionPercent"
+                ></div>
+              </div>
+              <p class="mt-1 text-sm opacity-80">
+                {{ topic.completionPercent | number: '1.0-0' }}% score
+              </p>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="text-sm opacity-75">
+          No analyzed exam data is available yet. Upload an exam to see topic performance.
+        </p>
+      }
+    </mat-card-content>
+  </mat-card>
+</section>

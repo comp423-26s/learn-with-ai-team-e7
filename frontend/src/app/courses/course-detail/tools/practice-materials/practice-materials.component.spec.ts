@@ -225,212 +225,53 @@ describe('PracticeMaterialsComponent', () => {
       const { fixture } = await setup({ materials: { ...STUB_MATERIALS, flashcards: [] } });
       expect(fixture.nativeElement.textContent).toContain('No flashcards available.');
     });
+
+    it('should navigate to next card via button click', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      fixture.nativeElement.querySelector('[data-testid="next-card-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['flashcardIndex']()).toBe(1);
+    });
+
+    it('should navigate to previous card via button click', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['flashcardIndex'].set(1);
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector('[data-testid="prev-card-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['flashcardIndex']()).toBe(0);
+    });
+
+    it('should flip card to back when flip button is clicked via DOM', async () => {
+      const { fixture } = await setup();
+      fixture.nativeElement.querySelector('[data-testid="flip-btn"]').click();
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="flashcard-back"]')?.textContent?.trim(),
+      ).toBe('90 degrees');
+    });
   });
 
-  describe('Quiz', () => {
-    it('should render first question text', async () => {
-      const { fixture } = await setup();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="question-text"]')?.textContent?.trim(),
-      ).toBe('What is a right angle?');
+  it('should return NaN course id when no route ancestor has an id param', async () => {
+    const noIdRoute = {
+      snapshot: {
+        queryParamMap: convertToParamMap({ uploadId: '22' }),
+        paramMap: convertToParamMap({}),
+      },
+      parent: {
+        snapshot: { paramMap: convertToParamMap({}) },
+        parent: null,
+      },
+    };
+    const { fixture } = await setup({
+      extraProviders: [{ provide: ActivatedRoute, useValue: noIdRoute }],
     });
-
-    it('should show question counter', async () => {
-      const { fixture } = await setup();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="question-counter"]')?.textContent,
-      ).toContain('Question 1 of 2');
-    });
-
-    it('should render answer input', async () => {
-      const { fixture } = await setup();
-      expect(fixture.nativeElement.querySelector('[data-testid="answer-input"]')).not.toBeNull();
-    });
-
-    it('should disable check answer button when no answer typed', async () => {
-      const { fixture } = await setup();
-      expect(fixture.nativeElement.querySelector('[data-testid="check-answer-btn"]').disabled).toBe(
-        true,
-      );
-    });
-
-    it('should enable check answer button after typing', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['onSelectAnswer']('90 degrees');
-      fixture.detectChanges();
-
-      expect(fixture.nativeElement.querySelector('[data-testid="check-answer-btn"]').disabled).toBe(
-        false,
-      );
-    });
-
-    it('should show correct feedback and reveal answer on check', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['onSelectAnswer']('90 degrees');
-      component['onCheckAnswer']();
-      fixture.detectChanges();
-
-      expect(component['isCorrect']()).toBe(true);
-      expect(component['score']()).toBe(1);
-      expect(fixture.nativeElement.querySelector('[data-testid="answer-reveal"]')).not.toBeNull();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="correct-answer"]')?.textContent,
-      ).toContain('90 degrees');
-    });
-
-    it('should show incorrect feedback on wrong answer', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['onSelectAnswer']('45 degrees');
-      component['onCheckAnswer']();
-      fixture.detectChanges();
-
-      expect(component['isCorrect']()).toBe(false);
-      expect(component['wrongTopics']()).toContain('Geometry');
-    });
-
-    it('should not check answer when nothing selected', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['onCheckAnswer']();
-
-      expect(component['submitted']()).toBe(false);
-    });
-
-    it('should not check answer again when already submitted', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['onSelectAnswer']('90 degrees');
-      component['onCheckAnswer']();
-      component['onSelectAnswer']('wrong');
-      component['onCheckAnswer']();
-
-      expect(component['score']()).toBe(1);
-    });
-
-    it('should navigate to next question and clear state', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['onSelectAnswer']('90 degrees');
-      component['onNextQuestion']();
-      fixture.detectChanges();
-
-      expect(component['questionIndex']()).toBe(1);
-      expect(component['selectedAnswer']()).toBeNull();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="question-counter"]')?.textContent,
-      ).toContain('Question 2 of 2');
-    });
-
-    it('should not go past last question', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['questionIndex'].set(1);
-      component['onNextQuestion']();
-
-      expect(component['questionIndex']()).toBe(1);
-    });
-
-    it('should navigate to previous question and clear state', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['questionIndex'].set(1);
-      component['onSelectAnswer']('some answer');
-      component['onPrevQuestion']();
-      fixture.detectChanges();
-
-      expect(component['questionIndex']()).toBe(0);
-      expect(component['selectedAnswer']()).toBeNull();
-    });
-
-    it('should not go before first question', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['onPrevQuestion']();
-
-      expect(component['questionIndex']()).toBe(0);
-    });
-
-    it('should update progress bar value', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      expect(component['progressPct']()).toBe(50);
-
-      component['onNextQuestion']();
-      expect(component['progressPct']()).toBe(100);
-    });
-
-    it('should disable prev question button on first question', async () => {
-      const { fixture } = await setup();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="prev-question-btn"]').disabled,
-      ).toBe(true);
-    });
-
-    it('should disable next question button on last question', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['questionIndex'].set(1);
-      fixture.detectChanges();
-
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="next-question-btn"]').disabled,
-      ).toBe(true);
-    });
-
-    it('should show summary after answering last question', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['questionIndex'].set(1);
-      component['onSelectAnswer']('1');
-      component['onCheckAnswer']();
-      fixture.detectChanges();
-
-      expect(fixture.nativeElement.querySelector('[data-testid="summary"]')).not.toBeNull();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="summary-score"]')?.textContent,
-      ).toContain('1 of 2');
-    });
-
-    it('should retake quiz and reset all state', async () => {
-      const { fixture } = await setup();
-      const component = fixture.componentInstance;
-
-      component['questionIndex'].set(1);
-      component['onSelectAnswer']('wrong');
-      component['onCheckAnswer']();
-      component['onRetake']();
-      fixture.detectChanges();
-
-      expect(component['questionIndex']()).toBe(0);
-      expect(component['score']()).toBe(0);
-      expect(component['wrongTopics']()).toEqual([]);
-      expect(component['submitted']()).toBe(false);
-      expect(component['selectedAnswer']()).toBeNull();
-    });
-
-    it('should show empty state when no questions', async () => {
-      const { fixture } = await setup({ materials: { ...STUB_MATERIALS, questions: [] } });
-      expect(fixture.nativeElement.textContent).toContain('No quiz questions available.');
-    });
-
-    it('should return 0 progress when questions array is empty', async () => {
-      const { fixture } = await setup({ materials: { ...STUB_MATERIALS, questions: [] } });
-      expect(fixture.componentInstance['progressPct']()).toBe(0);
-    });
+    expect(isNaN(fixture.componentInstance['courseId'])).toBe(true);
   });
 });

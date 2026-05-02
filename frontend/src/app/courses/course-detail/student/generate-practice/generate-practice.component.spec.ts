@@ -326,6 +326,26 @@ describe('GeneratePractice', () => {
         );
       });
 
+      it('sleeps between poll attempts when practice is not yet ready', async () => {
+        stubs.api.invoke.mockResolvedValue(EXAM_LIST);
+        stubs.practiceService.getPractice.mockRejectedValue(new Error('not ready'));
+
+        const fixture = TestBed.createComponent(GeneratePractice);
+        fixture.detectChanges();
+        await waitForLoad(fixture);
+        fixture.detectChanges();
+
+        const instance = fixture.componentInstance as unknown as GeneratePracticeInstance;
+        // maxAttempts=2, intervalMs=0: attempt 0 fails → sleep (line 106) → attempt 1 fails → error
+        await instance.pollUntilReady(1, 0, 2);
+        fixture.detectChanges();
+
+        expect(
+          fixture.nativeElement.querySelector('[data-testid="generate-error"]'),
+        ).not.toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('taking longer than expected');
+      });
+
       it('does nothing when onGenerate called with no selection', async () => {
         stubs.api.invoke.mockResolvedValue(EXAM_LIST);
 

@@ -66,7 +66,6 @@ export class StudentView implements OnDestroy {
   private readonly completedExamJobs = new Set<number>();
   private readonly courseUpdates: Signal<ReadonlyMap<number, JobUpdate>> | null;
 
-  protected readonly loading = signal(false);
   protected readonly errorMessage = signal('');
   protected readonly topics = signal<StudentTopicAnalysis[]>([]);
   protected readonly examAnalysis = signal<ExamAnalysisSummary | null>(null);

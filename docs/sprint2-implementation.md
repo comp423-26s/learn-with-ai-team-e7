@@ -200,7 +200,7 @@ Frontend fetches GET /courses/{id}/exam-pdfs/{upload_id}/practice
 
 From **Student Tools**, the student selects **Grading Analyzer** and picks a graded exam PDF from their device. The form validates file type and size before uploading.
 
-![Grading Analyzer — upload step](images/examupload2.png)
+![Grading Analyzer — upload step](images/examupload.png)
 
 After upload, the student dashboard polls for the analysis result. Once ready, it shows an overall score ring and a topic breakdown.
 

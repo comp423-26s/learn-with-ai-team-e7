@@ -69,7 +69,7 @@ class PracticeMaterialService:
             system_prompt=self._system_prompt(),
             user_prompt=self._user_prompt(upload_id, weak_topics, exam_text),
         )
-        self._logger.debug("LLM response for upload %s: %s", upload_id, llm_response)
+        self._logger.debug("LLM response received for upload %s (%s chars)", upload_id, len(llm_response))
         print(f"DEBUG: LLM returned {len(llm_response)} chars", flush=True)
         parsed = self._parse_llm_response(llm_response, upload_id)
         if parsed is None:

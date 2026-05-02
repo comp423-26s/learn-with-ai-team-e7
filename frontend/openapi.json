@@ -3843,7 +3843,6 @@
             "title": "Generated At"
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "upload_id",
@@ -3869,6 +3868,13 @@
             "type": "string",
             "minLength": 1,
             "title": "Answer"
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Choices"
           },
           "topic": {
             "type": "string",

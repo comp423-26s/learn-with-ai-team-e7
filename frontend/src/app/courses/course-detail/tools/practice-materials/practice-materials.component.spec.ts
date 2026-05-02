@@ -46,13 +46,10 @@ describe('PracticeMaterialsComponent', () => {
     const practiceServiceMock = {
       getPractice: vi
         .fn()
-        .mockResolvedValue(
-          options.materials !== undefined ? options.materials : STUB_MATERIALS,
-        ),
+        .mockResolvedValue(options.materials !== undefined ? options.materials : STUB_MATERIALS),
     };
 
-    const queryParams =
-      options.uploadId === null ? {} : { uploadId: options.uploadId ?? '22' };
+    const queryParams = options.uploadId === null ? {} : { uploadId: options.uploadId ?? '22' };
 
     const mockRoute = {
       snapshot: {
@@ -116,18 +113,14 @@ describe('PracticeMaterialsComponent', () => {
 
   it('should not show weak topics heading when list is empty', async () => {
     const { fixture } = await setup({ materials: { ...STUB_MATERIALS, weak_topics: [] } });
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="weak-topics-heading"]'),
-    ).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="weak-topics-heading"]')).toBeNull();
   });
 
   describe('Flashcards', () => {
     it('should render first flashcard front by default', async () => {
       const { fixture } = await setup();
       expect(
-        fixture.nativeElement
-          .querySelector('[data-testid="flashcard-front"]')
-          ?.textContent?.trim(),
+        fixture.nativeElement.querySelector('[data-testid="flashcard-front"]')?.textContent?.trim(),
       ).toBe('What is a right angle?');
     });
 
@@ -146,13 +139,9 @@ describe('PracticeMaterialsComponent', () => {
       fixture.detectChanges();
 
       expect(
-        fixture.nativeElement
-          .querySelector('[data-testid="flashcard-back"]')
-          ?.textContent?.trim(),
+        fixture.nativeElement.querySelector('[data-testid="flashcard-back"]')?.textContent?.trim(),
       ).toBe('90 degrees');
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="flashcard-front"]'),
-      ).toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-testid="flashcard-front"]')).toBeNull();
     });
 
     it('should flip back to front when flipped again', async () => {
@@ -163,9 +152,7 @@ describe('PracticeMaterialsComponent', () => {
       component['onFlip']();
       fixture.detectChanges();
 
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="flashcard-front"]'),
-      ).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-testid="flashcard-front"]')).not.toBeNull();
     });
 
     it('should navigate to next card and reset flip', async () => {
@@ -217,9 +204,9 @@ describe('PracticeMaterialsComponent', () => {
 
     it('should disable prev button on first card', async () => {
       const { fixture } = await setup();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="prev-card-btn"]').disabled,
-      ).toBe(true);
+      expect(fixture.nativeElement.querySelector('[data-testid="prev-card-btn"]').disabled).toBe(
+        true,
+      );
     });
 
     it('should disable next button on last card', async () => {
@@ -229,9 +216,9 @@ describe('PracticeMaterialsComponent', () => {
       component['flashcardIndex'].set(1);
       fixture.detectChanges();
 
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="next-card-btn"]').disabled,
-      ).toBe(true);
+      expect(fixture.nativeElement.querySelector('[data-testid="next-card-btn"]').disabled).toBe(
+        true,
+      );
     });
 
     it('should show empty state when no flashcards', async () => {
@@ -244,9 +231,7 @@ describe('PracticeMaterialsComponent', () => {
     it('should render first question text', async () => {
       const { fixture } = await setup();
       expect(
-        fixture.nativeElement
-          .querySelector('[data-testid="question-text"]')
-          ?.textContent?.trim(),
+        fixture.nativeElement.querySelector('[data-testid="question-text"]')?.textContent?.trim(),
       ).toBe('What is a right angle?');
     });
 
@@ -259,16 +244,14 @@ describe('PracticeMaterialsComponent', () => {
 
     it('should render answer input', async () => {
       const { fixture } = await setup();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="answer-input"]'),
-      ).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-testid="answer-input"]')).not.toBeNull();
     });
 
     it('should disable check answer button when no answer typed', async () => {
       const { fixture } = await setup();
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="check-answer-btn"]').disabled,
-      ).toBe(true);
+      expect(fixture.nativeElement.querySelector('[data-testid="check-answer-btn"]').disabled).toBe(
+        true,
+      );
     });
 
     it('should enable check answer button after typing', async () => {
@@ -278,9 +261,9 @@ describe('PracticeMaterialsComponent', () => {
       component['onSelectAnswer']('90 degrees');
       fixture.detectChanges();
 
-      expect(
-        fixture.nativeElement.querySelector('[data-testid="check-answer-btn"]').disabled,
-      ).toBe(false);
+      expect(fixture.nativeElement.querySelector('[data-testid="check-answer-btn"]').disabled).toBe(
+        false,
+      );
     });
 
     it('should show correct feedback and reveal answer on check', async () => {
@@ -293,13 +276,9 @@ describe('PracticeMaterialsComponent', () => {
 
       expect(component['isCorrect']()).toBe(true);
       expect(component['score']()).toBe(1);
+      expect(fixture.nativeElement.querySelector('[data-testid="answer-reveal"]')).not.toBeNull();
       expect(
-        fixture.nativeElement.querySelector('[data-testid="answer-reveal"]'),
-      ).not.toBeNull();
-      expect(
-        fixture.nativeElement
-          .querySelector('[data-testid="correct-answer"]')
-          ?.textContent,
+        fixture.nativeElement.querySelector('[data-testid="correct-answer"]')?.textContent,
       ).toContain('90 degrees');
     });
 

@@ -1,0 +1,72 @@
+<!--
+  Copyright (c) 2026 Kris Jordan
+  SPDX-License-Identifier: MIT
+-->
+
+@if (loadingExams()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading your exam uploads" />
+} @else if (loadError()) {
+  <p role="alert" class="error-message">{{ loadError() }}</p>
+} @else if (!hasExams()) {
+  <mat-card appearance="outlined" class="empty-state-card">
+    <mat-card-content class="empty-state">
+      <mat-icon class="empty-icon" aria-hidden="true">insert_drive_file</mat-icon>
+      <h3>No exams uploaded yet.</h3>
+      <p>Upload a graded exam in the Grading Analyzer to generate practice materials.</p>
+    </mat-card-content>
+  </mat-card>
+} @else {
+  <div class="top-actions">
+    @if (generateError()) {
+      <p role="alert" class="error-message" data-testid="generate-error">{{ generateError() }}</p>
+    } @else if (generating()) {
+      <div class="generating-state" role="status" aria-live="polite">
+        <mat-progress-bar mode="indeterminate" aria-label="Generating practice materials" />
+        <p class="generating-message">Generating your practice materials&hellip;</p>
+      </div>
+    }
+  </div>
+
+  <p class="instructions">
+    Select an exam you uploaded to generate personalized flashcards and practice questions targeting
+    your weak topics.
+  </p>
+
+  @if (!generating() && !generateError()) {
+    <div class="generate-action">
+      <button
+        mat-flat-button
+        [disabled]="selectedUploadId() === null"
+        (click)="onGenerate()"
+        data-testid="generate-btn"
+        aria-label="Generate practice materials for selected exam"
+      >
+        <mat-icon>auto_awesome</mat-icon>
+        Generate Practice Materials
+      </button>
+    </div>
+  }
+
+  <ul class="exam-list" aria-label="Your uploaded exams">
+    @for (exam of exams(); track exam.id) {
+      <li>
+        <button
+          class="exam-item"
+          [class.exam-item--selected]="selectedUploadId() === exam.id"
+          [attr.aria-pressed]="selectedUploadId() === exam.id"
+          [attr.aria-label]="'Select ' + exam.original_filename"
+          (click)="onSelectExam(exam.id)"
+        >
+          <mat-icon aria-hidden="true">description</mat-icon>
+          <span class="exam-info">
+            <span class="exam-name">{{ exam.original_filename }}</span>
+            <span class="exam-date">Uploaded {{ exam.uploaded_at | date: 'mediumDate' }}</span>
+          </span>
+          @if (selectedUploadId() === exam.id) {
+            <mat-icon class="selected-check" aria-hidden="true">check_circle</mat-icon>
+          }
+        </button>
+      </li>
+    }
+  </ul>
+}

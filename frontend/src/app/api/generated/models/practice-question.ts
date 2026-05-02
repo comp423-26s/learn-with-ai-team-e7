@@ -7,6 +7,7 @@
  */
 export interface PracticeQuestion {
   answer: string;
+  choices?: Array<string>;
   difficulty?: 'easy' | 'medium' | 'hard';
   question_text: string;
   topic: string;

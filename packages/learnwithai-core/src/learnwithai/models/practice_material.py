@@ -24,6 +24,7 @@ class PracticeQuestion(BaseModel):
 
     question_text: str = Field(min_length=1)
     answer: str = Field(min_length=1)
+    choices: list[str] = Field(default_factory=list)
     topic: str = Field(min_length=1)
     difficulty: DifficultyLabel = "medium"
 
@@ -39,7 +40,7 @@ class Flashcard(BaseModel):
 class PracticeMaterialSet(BaseModel):
     """A complete set of AI-generated practice materials targeting a student's weak topics."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     upload_id: int
     weak_topics: list[str] = Field(min_length=1)

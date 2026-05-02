@@ -9,14 +9,12 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { PageTitleService } from '../../../../page-title.service';
 import { PracticeService } from '../practice.service';
 import type { PracticeMaterialResponse } from '../../../../api/generated/models/practice-material-response';
 import type { Flashcard } from '../../../../api/generated/models/flashcard';
-import type { PracticeQuestion } from '../../../../api/generated/models/practice-question';
 
 @Component({
   selector: 'app-practice-materials',
@@ -24,7 +22,6 @@ import type { PracticeQuestion } from '../../../../api/generated/models/practice
   imports: [
     MatCardModule,
     MatButtonModule,
-    MatProgressBarModule,
     MatProgressSpinnerModule,
     MatIconModule,
     RouterLink,
@@ -41,26 +38,12 @@ export class PracticeMaterialsComponent implements OnInit {
   protected readonly errorMessage = signal('');
   protected readonly weakTopics = signal<string[]>([]);
   protected readonly flashcards = signal<Flashcard[]>([]);
-  protected readonly questions = signal<PracticeQuestion[]>([]);
 
-  // ── flashcard state ───────────────────────────────────────────────────────
   protected readonly flashcardIndex = signal(0);
   protected readonly flipped = signal(false);
   protected readonly currentFlashcard = computed(
     (): Flashcard => this.flashcards()[this.flashcardIndex()],
   );
-
-  // ── quiz state ────────────────────────────────────────────────────────────
-  protected readonly questionIndex = signal(0);
-  protected readonly currentQuestion = computed(
-    (): PracticeQuestion => this.questions()[this.questionIndex()],
-  );
-  protected readonly selectedAnswer = signal<string | null>(null);
-  protected readonly progressPct = computed(() => {
-    const total = this.questions().length;
-    if (total === 0) return 0;
-    return ((this.questionIndex() + 1) / total) * 100;
-  });
 
   protected readonly courseId: number;
 
@@ -86,25 +69,12 @@ export class PracticeMaterialsComponent implements OnInit {
       );
       this.weakTopics.set(result.weak_topics);
       this.flashcards.set(result.flashcards);
-      this.questions.set(result.questions);
     } catch {
       this.errorMessage.set('Could not load practice materials. Please try again.');
     } finally {
       this.loading.set(false);
     }
   }
-
-  protected readonly submitted = signal(false);
-  protected readonly isCorrect = signal<boolean | null>(null);
-
-  protected readonly score = signal(0);
-  protected readonly wrongTopics = signal<string[]>([]);
-
-  protected readonly showSummary = computed(
-    () => this.questionIndex() === this.questions().length - 1 && this.submitted(),
-  );
-
-  // ── flashcard controls ────────────────────────────────────────────────────
 
   protected onFlip(): void {
     this.flipped.set(!this.flipped());
@@ -124,26 +94,6 @@ export class PracticeMaterialsComponent implements OnInit {
     }
   }
 
-  // ── quiz controls ─────────────────────────────────────────────────────────
-
-  protected onSelectAnswer(answer: string): void {
-    this.selectedAnswer.set(answer);
-  }
-
-  protected onNextQuestion(): void {
-    if (this.questionIndex() < this.questions().length - 1) {
-      this.questionIndex.update((i) => i + 1);
-      this.selectedAnswer.set(null);
-    }
-  }
-
-  protected onPrevQuestion(): void {
-    if (this.questionIndex() > 0) {
-      this.questionIndex.update((i) => i - 1);
-      this.selectedAnswer.set(null);
-    }
-  }
-
   private resolveCourseId(): number {
     let currentRoute: ActivatedRoute | null = this.route;
     while (currentRoute) {
@@ -152,36 +102,5 @@ export class PracticeMaterialsComponent implements OnInit {
       currentRoute = currentRoute.parent;
     }
     return Number.NaN;
-  }
-
-  protected onCheckAnswer(): void {
-    if (!this.selectedAnswer() || this.submitted()) return;
-
-    const question = this.currentQuestion();
-
-    const correct = question.answer.trim().toLowerCase();
-    const selected = this.selectedAnswer()!.trim().toLowerCase();
-
-    const isCorrect = correct === selected;
-
-    this.isCorrect.set(isCorrect);
-    this.submitted.set(true);
-
-    if (isCorrect) {
-      this.score.update((s) => s + 1);
-    } else {
-      this.wrongTopics.update((t) => [...t, question.topic]);
-    }
-  }
-  protected onRetake(): void {
-    this.questionIndex.set(0);
-    this.selectedAnswer.set(null);
-    this.submitted.set(false);
-    this.isCorrect.set(null);
-
-    this.score.set(0);
-    this.wrongTopics.set([]);
-
-    this.questions.update((q) => [...q.sort(() => Math.random() - 0.5)]);
   }
 }

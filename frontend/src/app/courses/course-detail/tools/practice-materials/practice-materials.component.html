@@ -18,7 +18,6 @@
       </p>
     }
 
-    <!--flashcards -->
     <mat-card appearance="outlined" class="section-card">
       <mat-card-header>
         <mat-card-title>Flashcards</mat-card-title>
@@ -63,102 +62,6 @@
               data-testid="next-card-btn"
               [disabled]="flashcardIndex() === flashcards().length - 1"
               (click)="onNextCard()"
-            >
-              Next
-              <mat-icon>chevron_right</mat-icon>
-            </button>
-          </div>
-        }
-      </mat-card-content>
-    </mat-card>
-
-    <!--quiz -->
-    <mat-card appearance="outlined" class="section-card">
-      <mat-card-header>
-        <mat-card-title>Practice Quiz</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        @if (questions().length === 0) {
-          <p>No quiz questions available.</p>
-        } @else if (showSummary()) {
-          <div class="summary" data-testid="summary">
-            <p class="summary-score" data-testid="summary-score">
-              You got {{ score() }} of {{ questions().length }} correct.
-            </p>
-            @if (wrongTopics().length > 0) {
-              <p class="summary-weak" data-testid="summary-weak-topics">
-                Topics to revisit: {{ wrongTopics().join(', ') }}
-              </p>
-            }
-            <button mat-flat-button color="primary" data-testid="retake-btn" (click)="onRetake()">
-              Retake Quiz
-            </button>
-          </div>
-        } @else {
-          <p class="question-counter" data-testid="question-counter">
-            Question {{ questionIndex() + 1 }} of {{ questions().length }}
-          </p>
-
-          <mat-progress-bar mode="determinate" [value]="progressPct()" data-testid="progress-bar" />
-
-          <p class="question-text" data-testid="question-text">
-            {{ currentQuestion().question_text }}
-          </p>
-
-          @if (submitted()) {
-            <div
-              class="answer-reveal"
-              [class.correct]="isCorrect()"
-              [class.incorrect]="!isCorrect()"
-              data-testid="answer-reveal"
-            >
-              <p class="reveal-label">{{ isCorrect() ? 'Correct!' : 'Not quite.' }}</p>
-              <p class="reveal-answer" data-testid="correct-answer">
-                Answer: {{ currentQuestion().answer }}
-              </p>
-            </div>
-          } @else {
-            <div class="choices-list" data-testid="choices-list">
-              @for (choice of currentQuestion().choices; track choice) {
-                <button
-                  mat-stroked-button
-                  class="choice-btn"
-                  [class.selected]="selectedAnswer() === choice"
-                  (click)="onSelectAnswer(choice)"
-                  data-testid="choice-btn"
-                >
-                  {{ choice }}
-                </button>
-              }
-            </div>
-
-            <button
-              mat-flat-button
-              color="primary"
-              data-testid="check-answer-btn"
-              [disabled]="!selectedAnswer()"
-              (click)="onCheckAnswer()"
-            >
-              Check Answer
-            </button>
-          }
-
-          <div class="quiz-controls">
-            <button
-              mat-stroked-button
-              data-testid="prev-question-btn"
-              [disabled]="questionIndex() === 0"
-              (click)="onPrevQuestion()"
-            >
-              <mat-icon>chevron_left</mat-icon>
-              Previous
-            </button>
-
-            <button
-              mat-stroked-button
-              data-testid="next-question-btn"
-              [disabled]="questionIndex() === questions().length - 1"
-              (click)="onNextQuestion()"
             >
               Next
               <mat-icon>chevron_right</mat-icon>

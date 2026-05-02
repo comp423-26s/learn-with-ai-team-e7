@@ -183,9 +183,3 @@ def get_session() -> Generator[Session, None, None]:
         raise
     finally:
         session.close()
-
-def _run_after_commit_callbacks(session: Session) -> None:
-    callbacks = list(session.info.pop(_AFTER_COMMIT_CALLBACKS_KEY, []))
-    print(f"DEBUG DB: running {len(callbacks)} after-commit callbacks", flush=True)
-    for callback in callbacks:
-        callback()

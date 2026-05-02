@@ -93,11 +93,10 @@ class PracticeMaterialService:
 
     def _system_prompt(self) -> str:
         return (
-            "You are a practice material generator. Your task is to return ONLY a JSON object with exactly 4 top-level fields:\n"
-            "1. upload_id (copy from input)\n"
-            "2. weak_topics (copy from input)\n"
-            "3. questions (array of practice questions)\n"
-            "4. flashcards (array of flashcards)\n\n"
+            "You are a practice material generator. Your task is to return ONLY a JSON object with exactly 3 top-level fields:\n"
+            "1. weak_topics (copy from input)\n"
+            "2. questions (array of practice questions)\n"
+            "3. flashcards (array of flashcards)\n\n"
             "Each question object must have: question_text, answer, topic, difficulty.\n"
             "Each flashcard must have: front, back, topic.\n"
             "Provide 5 questions per weak topic (not total, per topic).\n"
@@ -107,11 +106,9 @@ class PracticeMaterialService:
 
     def _user_prompt(self, upload_id: int, weak_topics: list[str], exam_text: str) -> str:
         payload = {
-            "upload_id": upload_id,
             "exam_text": exam_text,
             "weak_topics": weak_topics,
             "required_schema": {
-                "upload_id": "integer",
                 "weak_topics": ["string"],
                 "questions": [
                     {
@@ -156,16 +153,13 @@ class PracticeMaterialService:
             self._logger.warning(msg)
             return None
 
+        # Inject the authoritative upload_id — don't rely on the model to echo it back.
+        loaded["upload_id"] = upload_id
+
         try:
             parsed = PracticeMaterialSet.model_validate(loaded)
         except ValidationError as ve:
             msg = f"PracticeMaterialSet validation failed for upload {upload_id}. Data: {json.dumps(loaded)[:300]}; Errors: {str(ve)[:200]}"
-            print(f"PARSE_ERROR: {msg}", flush=True)
-            self._logger.warning(msg)
-            return None
-
-        if parsed.upload_id != upload_id:
-            msg = f"Upload ID mismatch for upload {upload_id}: expected {upload_id}, got {parsed.upload_id}"
             print(f"PARSE_ERROR: {msg}", flush=True)
             self._logger.warning(msg)
             return None

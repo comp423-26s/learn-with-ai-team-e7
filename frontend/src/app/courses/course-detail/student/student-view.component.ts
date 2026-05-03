@@ -143,18 +143,21 @@ export class StudentView implements OnDestroy {
       const analysis = await this.pollForAnalysis(this.courseId, uploadId);
       if (analysis !== null) {
         this.dashboardState.setAnalysis(this.courseId, analysis);
+        this.dashboardState.setAnalysisByUploadId(uploadId, analysis);
         this.applyAnalysis(analysis);
-      } else {
-        await this.refreshLatestAnalysis();
       }
+      // Do not fall back to refreshLatestAnalysis when polling times out.
+      // Showing a different exam's analysis would be misleading. The WebSocket
+      // will call refreshLatestAnalysis once the new exam's job completes.
       this.analysisLoading.set(false);
     } else {
+      // No specific upload context: apply cached data immediately for a snappy
+      // display, then always refresh from the network so the latest analysis is shown.
       const cached = this.dashboardState.getAnalysis(this.courseId);
       if (cached) {
         this.applyAnalysis(cached);
-      } else {
-        await this.refreshLatestAnalysis();
       }
+      await this.refreshLatestAnalysis();
     }
   }
 
@@ -168,8 +171,8 @@ export class StudentView implements OnDestroy {
     const analysis = await this.gradingAnalyzerService.getLatestAnalysis(this.courseId);
     if (analysis !== null) {
       this.dashboardState.setAnalysis(this.courseId, analysis);
+      this.applyAnalysis(analysis);
     }
-    this.applyAnalysis(analysis);
   }
 
   private analysisToTopics(analysis: ExamAnalysisSummary): StudentTopicAnalysis[] {

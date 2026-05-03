@@ -165,7 +165,7 @@ describe('StudentView', () => {
     expect(fixture.nativeElement.textContent).toContain('Freshly analyzed upload');
   });
 
-  it('uses cached analysis and skips network fetch', async () => {
+  it('uses cached analysis optimistically and still refreshes from network', async () => {
     const cachedAnalysis: ExamAnalysisSummary = {
       headline: 'Cached exam analysis',
       overall_score_pct: 0.75,
@@ -179,7 +179,9 @@ describe('StudentView', () => {
       latestAnalysis: null,
     });
 
-    expect(gradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
+    // Network always refreshed (latestAnalysis=null means no update applied)
+    expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);
+    // Cached data is still displayed because network returned null
     expect(fixture.nativeElement.textContent).toContain('Cached exam analysis');
   });
 
@@ -196,6 +198,21 @@ describe('StudentView', () => {
 
     const stateService = TestBed.inject(StudentDashboardStateService);
     expect(stateService.getAnalysis(1)).toEqual(analysis);
+  });
+
+  it('stores analysis by upload id when polling succeeds for a specific upload', async () => {
+    const analysis: ExamAnalysisSummary = {
+      headline: 'Upload-specific analysis',
+      overall_score_pct: 0.9,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
+    };
+
+    await setup({ uploadId: '42', pollAnalysis: analysis });
+
+    const stateService = TestBed.inject(StudentDashboardStateService);
+    expect(stateService.getAnalysisByUploadId(42)).toEqual(analysis);
   });
 
   it('refreshes dashboard when an exam analysis job completes', async () => {
@@ -246,24 +263,44 @@ describe('StudentView', () => {
     expect(jobUpdateService.unsubscribe).toHaveBeenCalledWith(1);
   });
 
-  it('falls back to refreshLatestAnalysis when uploadId polling returns null', async () => {
-    const refreshedAnalysis: ExamAnalysisSummary = {
-      headline: 'Refreshed from getLatestAnalysis',
-      overall_score_pct: 0.85,
+  it('always refreshes from network even when cache has stale data', async () => {
+    const cachedAnalysis: ExamAnalysisSummary = {
+      headline: 'Old cached analysis',
+      overall_score_pct: 0.5,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
+    };
+    const freshAnalysis: ExamAnalysisSummary = {
+      headline: 'Fresh network analysis',
+      overall_score_pct: 0.82,
       strengths: [],
       needs_review: [],
       weaknesses: [],
     };
 
     const { fixture, gradingAnalyzerService } = await setup({
+      cachedAnalysis,
+      latestAnalysis: freshAnalysis,
+    });
+
+    expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);
+    // Fresh data from network replaces the stale cache
+    expect(fixture.nativeElement.textContent).toContain('Fresh network analysis');
+    expect(fixture.nativeElement.textContent).not.toContain('Old cached analysis');
+  });
+
+  it('does not fall back to getLatestAnalysis when uploadId polling returns null', async () => {
+    const { gradingAnalyzerService } = await setup({
       uploadId: '42',
       pollAnalysis: null,
-      latestAnalysis: refreshedAnalysis,
+      latestAnalysis: null,
     });
 
     expect(gradingAnalyzerService.getExamAnalysis).toHaveBeenCalledWith(1, 42);
-    expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);
-    expect(fixture.nativeElement.textContent).toContain('Refreshed from getLatestAnalysis');
+    // Should NOT call getLatestAnalysis — showing a different exam's stale analysis
+    // when a specific upload was just made would be misleading.
+    expect(gradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
   });
 
   it('calls refreshLatestAnalysis when no uploadId and no cache exists', async () => {

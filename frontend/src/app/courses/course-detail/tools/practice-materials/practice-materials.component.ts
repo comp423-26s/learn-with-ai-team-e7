@@ -19,13 +19,7 @@ import type { Flashcard } from '../../../../api/generated/models/flashcard';
 @Component({
   selector: 'app-practice-materials',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatCardModule,
-    MatButtonModule,
-    MatProgressSpinnerModule,
-    MatIconModule,
-    RouterLink,
-  ],
+  imports: [MatCardModule, MatButtonModule, MatProgressSpinnerModule, MatIconModule, RouterLink],
   templateUrl: './practice-materials.component.html',
   styleUrl: './practice-materials.component.scss',
 })

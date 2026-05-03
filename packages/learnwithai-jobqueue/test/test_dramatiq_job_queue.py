@@ -92,17 +92,3 @@ def test_job_queue_actor_integrates_adapter_and_handler() -> None:
 def test_job_queue_actor_limits_retries() -> None:
     """max_retries prevents retry storms from configuration errors."""
     assert job_queue.options.get("max_retries") == 3
-
-
-def test_job_queue_actor_reraises_exception_on_handler_failure() -> None:
-    """Actor propagates exceptions so Dramatiq can retry or dead-letter the message."""
-    payload = {"type": "echo", "message": "hello"}
-
-    with (
-        patch(
-            "learnwithai_jobqueue.dramatiq_job_queue.job_adapter",
-            side_effect=ValueError("bad payload"),
-        ),
-        pytest.raises(ValueError, match="bad payload"),
-    ):
-        job_queue.fn(payload)

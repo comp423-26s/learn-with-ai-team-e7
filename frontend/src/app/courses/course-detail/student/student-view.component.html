@@ -82,43 +82,6 @@
                   <td class="py-1">{{ topic.performance }}</td>
                   <td class="py-1">{{ (topic.average_score_pct * 100).toFixed(1) }}%</td>
                 </tr>
-              </thead>
-              <tbody>
-                @for (topic of examAnalysisTopics(); track topic.topic) {
-                  <tr>
-                    <td class="py-1">{{ topic.topic }}</td>
-                    <td class="py-1">{{ topic.performance }}</td>
-                    <td class="py-1">{{ (topic.average_score_pct * 100).toFixed(1) }}%</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          }
-        </mat-card-content>
-      </mat-card>
-    }
-
-    <div class="grid gap-4 lg:grid-cols-2">
-      <mat-card appearance="outlined" aria-label="Strength topics">
-        <mat-card-header>
-          <mat-card-title>Strengths</mat-card-title>
-          <mat-card-subtitle>Topics where exam performance is strongest</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          @if (strengths().length > 0) {
-            <ul class="space-y-3">
-              @for (topic of strengths(); track topic.id) {
-                <li class="rounded-lg border border-emerald-200 p-3">
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="font-medium">{{ topic.topic }}</p>
-                    <span
-                      class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
-                    >
-                      Strength
-                    </span>
-                  </div>
-                  <p class="mt-2 text-sm opacity-80">Included in analyzed exam feedback</p>
-                </li>
               }
             </tbody>
           </table>

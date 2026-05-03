@@ -38,11 +38,7 @@ class DramatiqJobQueue(JobQueue):
 
 @dramatiq.actor(max_retries=3)
 def job_queue(payload: dict) -> None:
-    try:
-        job: Job = job_adapter(payload)
-        handler_class: type[JobHandler[Any]] = get_job_handler_map()[type(job)]
-        handler: JobHandler[Any] = handler_class()
-        handler.handle(job)
-    except Exception as e:
-        print(f"DEBUG ACTOR ERROR: {type(e).__name__}: {e}", flush=True)
-        raise
+    job: Job = job_adapter(payload)
+    handler_class: type[JobHandler[Any]] = get_job_handler_map()[type(job)]
+    handler: JobHandler[Any] = handler_class()
+    handler.handle(job)

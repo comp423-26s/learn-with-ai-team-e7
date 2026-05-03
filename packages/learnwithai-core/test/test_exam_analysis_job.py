@@ -80,7 +80,7 @@ def test_handler_completes_and_updates_upload_with_analysis() -> None:
     mock_analysis.model_dump.return_value = mock_analysis_data
 
     mock_service = MagicMock()
-    mock_service.analyze_upload.return_value = mock_analysis
+    mock_service.analyze_from_text.return_value = mock_analysis
 
     mock_settings = MagicMock()
     mock_settings.openai_api_key = "sk-test"
@@ -102,7 +102,7 @@ def test_handler_completes_and_updates_upload_with_analysis() -> None:
     ):
         handler.handle(job_payload)
 
-    mock_service.analyze_upload.assert_called_once_with(42, [])
+    mock_service.analyze_from_text.assert_called_once_with("Question 1: What is 2+2? A) 4 B) 5")
     assert async_job.status == AsyncJobStatus.COMPLETED
     assert async_job.completed_at is not None
     assert async_job.output_data == {"analysis": mock_analysis_data}
@@ -161,7 +161,7 @@ def test_handler_rolls_back_when_analysis_fails() -> None:
     exam_pdf_text_repo_instance.get_by_upload_id.return_value = mock_text
 
     mock_service = MagicMock()
-    mock_service.analyze_upload.side_effect = RuntimeError("LLM failed")
+    mock_service.analyze_from_text.side_effect = RuntimeError("LLM failed")
 
     mock_settings = MagicMock()
     mock_settings.openai_api_key = "sk-test"
@@ -184,7 +184,7 @@ def test_handler_rolls_back_when_analysis_fails() -> None:
     ):
         handler.handle(job_payload)
 
-    mock_service.analyze_upload.assert_called_once_with(42, [])
+    mock_service.analyze_from_text.assert_called_once_with("Question 1: What is 2+2? A) 4 B) 5")
     assert async_job.status == AsyncJobStatus.FAILED
     assert async_job.completed_at is not None
     mock_session.rollback.assert_called_once()

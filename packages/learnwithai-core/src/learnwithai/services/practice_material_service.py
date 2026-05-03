@@ -93,17 +93,18 @@ class PracticeMaterialService:
 
     def _system_prompt(self) -> str:
         return (
-            "You are a practice material generator. Your task is to return ONLY a JSON object with exactly 3 top-level fields:\n"
+            "You are a practice material generator. "
+            "Return ONLY a JSON object with exactly 3 top-level fields:\n"
             "1. weak_topics (copy from input)\n"
             "2. questions (array of multiple-choice practice questions)\n"
             "3. flashcards (array of flashcards)\n\n"
-            "Each question object must have: question_text, answer, choices, topic, difficulty.\n"
+            "Each question must have: question_text, answer, choices, topic, difficulty.\n"
             "  - answer: the correct answer as a plain string.\n"
-            "  - choices: a list of exactly 4 strings. One must match answer exactly. The other 3 are plausible but wrong. Shuffle the order so the correct answer is not always first.\n"
+            "  - choices: exactly 4 strings. One matches answer exactly. "
+            "The other 3 are plausible but wrong. Shuffle so the correct answer is not always first.\n"
             "Each flashcard must have: front, back, topic.\n"
-            "Provide 5 questions per weak topic (not total, per topic).\n"
-            "Provide 5 flashcards per weak topic (not total, per topic).\n"
-            "Return ONLY valid JSON. Do not include markdown, code fences (```), or any text before/after the JSON."
+            "Provide 5 questions and 5 flashcards per weak topic.\n"
+            "Return ONLY valid JSON. No markdown, no code fences, no extra text."
         )
 
     def _user_prompt(self, upload_id: int, weak_topics: list[str], exam_text: str) -> str:
@@ -162,13 +163,17 @@ class PracticeMaterialService:
         try:
             parsed = PracticeMaterialSet.model_validate(loaded)
         except ValidationError as ve:
-            msg = f"PracticeMaterialSet validation failed for upload {upload_id}. Data: {json.dumps(loaded)[:300]}; Errors: {str(ve)[:200]}"
+            msg = (
+                f"PracticeMaterialSet validation failed for upload {upload_id}. "
+                f"Data: {json.dumps(loaded)[:300]}; Errors: {str(ve)[:200]}"
+            )
             print(f"PARSE_ERROR: {msg}", flush=True)
             self._logger.warning(msg)
             return None
 
         print(
-            f"SUCCESS: Parsed practice materials for upload {upload_id}: {len(parsed.questions)} questions, {len(parsed.flashcards)} flashcards",
+            f"SUCCESS: Parsed practice materials for upload {upload_id}: "
+            f"{len(parsed.questions)} questions, {len(parsed.flashcards)} flashcards",
             flush=True,
         )
         return parsed
@@ -184,11 +189,6 @@ class PracticeMaterialService:
         # Try to find a valid JSON object
         match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", stripped, flags=re.DOTALL)
         if match:
-            return match.group(0)
-
-        # Fallback: try the greedy approach (may capture too much, but better than nothing)
-        match = re.search(r"\{.*\}", stripped, flags=re.DOTALL)
-        if match is not None:
             return match.group(0)
 
         return None

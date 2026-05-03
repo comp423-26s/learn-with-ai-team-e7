@@ -26,25 +26,19 @@ class DramatiqJobQueue(JobQueue):
 
     def enqueue(self, job: Job) -> None:
         payload = job.model_dump()
-        print(f"DEBUG ENQUEUE: enqueueing {payload}", flush=True)
         if self._session is None:
             job_queue.send(payload)
             return
 
         def _dispatch() -> None:
-            print(f"DEBUG DISPATCH: sending to dramatiq {payload}", flush=True)
             job_queue.send(payload)
 
         add_after_commit_callback(self._session, _dispatch)
 
+
 @dramatiq.actor(max_retries=3)
 def job_queue(payload: dict) -> None:
-    print(f"DEBUG ACTOR: received payload {payload}", flush=True)
-    try:
-        job: Job = job_adapter(payload)
-        handler_class: type[JobHandler[Any]] = get_job_handler_map()[type(job)]
-        handler: JobHandler[Any] = handler_class()
-        handler.handle(job)
-    except Exception as e:
-        print(f"DEBUG ACTOR ERROR: {type(e).__name__}: {e}", flush=True)
-        raise
+    job: Job = job_adapter(payload)
+    handler_class: type[JobHandler[Any]] = get_job_handler_map()[type(job)]
+    handler: JobHandler[Any] = handler_class()
+    handler.handle(job)

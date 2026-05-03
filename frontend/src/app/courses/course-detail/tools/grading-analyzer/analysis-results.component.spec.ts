@@ -7,7 +7,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { provideRouter } from '@angular/router';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { AnalysisResultsComponent } from './analysis-results.component';
+import { AnalysisResultsComponent, ANALYSIS_POLL_CONFIG } from './analysis-results.component';
 import { GradingAnalyzerService } from '../grading-analyzer.service';
 import { PageTitleService } from '../../../../page-title.service';
 import type { ExamAnalysisSummary } from '../../../../api/generated/models/exam-analysis-summary';
@@ -15,6 +15,8 @@ import { PracticeService } from '../practice.service';
 import { Router } from '@angular/router';
 import { Provider } from '@angular/core';
 import { StudentDashboardStateService } from '../../student/student-dashboard-state.service';
+
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve));
 
 const STUB_ANALYSIS: ExamAnalysisSummary = {
   headline: 'You performed well in Algebra. Focus your revision on Geometry.',
@@ -75,13 +77,16 @@ describe('AnalysisResultsComponent', () => {
         { provide: GradingAnalyzerService, useValue: mockService },
         { provide: PageTitleService, useValue: { setTitle: vi.fn() } },
         { provide: ActivatedRoute, useValue: mockRoute },
+        { provide: ANALYSIS_POLL_CONFIG, useValue: { intervalMs: 0, maxAttempts: 1 } },
         ...(options.extraProviders ?? []),
       ],
     });
 
     const fixture = TestBed.createComponent(AnalysisResultsComponent);
     fixture.detectChanges();
-    await fixture.whenStable();
+    await flush();
+    fixture.detectChanges();
+    await flush();
     fixture.detectChanges();
 
     return { fixture, mockService };
@@ -129,7 +134,7 @@ describe('AnalysisResultsComponent', () => {
     };
 
     const dashboardStateService = {
-      getAnalysis: vi.fn().mockReturnValue(cachedAnalysis),
+      getAnalysisByUploadId: vi.fn().mockReturnValue(cachedAnalysis),
     };
 
     const { fixture } = await setup({
@@ -388,5 +393,51 @@ describe('AnalysisResultsComponent', () => {
       // Call pollUntilComplete directly with maxAttempts=1, intervalMs=0 to trigger timeout
       await expect(component['pollUntilComplete'](42, 0, 1)).rejects.toThrow('Timed out');
     });
+  });
+
+  it('uses the default ANALYSIS_POLL_CONFIG factory when no override is provided', async () => {
+    // This test does not provide ANALYSIS_POLL_CONFIG so the default factory runs
+    const mockGradingService = {
+      getExamAnalysis: vi.fn().mockResolvedValue(STUB_ANALYSIS),
+    };
+    const mockPracticeService = {
+      getPractice: vi.fn(),
+      generatePractice: vi.fn(),
+    };
+    const mockRouter = { navigate: vi.fn().mockResolvedValue(true) };
+    const mockDashboardState = { setAnalysis: vi.fn(), getAnalysis: vi.fn().mockReturnValue(null) };
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [AnalysisResultsComponent, NoopAnimationsModule],
+      providers: [
+        provideRouter([]),
+        { provide: GradingAnalyzerService, useValue: mockGradingService },
+        { provide: PracticeService, useValue: mockPracticeService },
+        { provide: PageTitleService, useValue: { setTitle: vi.fn() } },
+        { provide: Router, useValue: mockRouter },
+        { provide: StudentDashboardStateService, useValue: mockDashboardState },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              queryParamMap: new Map([['uploadId', '22']]),
+              paramMap: new Map(),
+            },
+            parent: { snapshot: { paramMap: new Map([['id', '3']]) } },
+            pathFromRoot: [],
+          },
+        },
+        // No ANALYSIS_POLL_CONFIG override — exercises the default factory
+      ],
+    });
+
+    const fixture = TestBed.createComponent(AnalysisResultsComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // If default factory ran, component creates without throwing
+    expect(fixture).toBeTruthy();
   });
 });

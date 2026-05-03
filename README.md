@@ -243,5 +243,3 @@ After this README, the next documents to read are:
 - `scripts/README.md` for QA and automation commands
 
 If you are brand new to the project, read them in that order.
-
-This version works!

@@ -33,7 +33,6 @@ interface StudentTopicAnalysis {
   topic: string;
   label: TopicLabel;
   completionPercent: number;
-  feedbackAvailable: boolean;
 }
 
 export interface PollConfig {
@@ -179,7 +178,6 @@ export class StudentView implements OnDestroy {
     const mapTopics = (
       topics: TopicSummaryLine[],
       label: TopicLabel,
-      feedbackAvailable: boolean,
       idOffset: number,
     ): StudentTopicAnalysis[] =>
       topics.map((t, i) => ({
@@ -187,16 +185,15 @@ export class StudentView implements OnDestroy {
         topic: t.topic,
         label,
         completionPercent: Math.round(t.average_score_pct * 100),
-        feedbackAvailable,
       }));
 
     const sCount = analysis.strengths.length;
     const nCount = analysis.needs_review.length;
 
     return [
-      ...mapTopics(analysis.strengths, 'strength', true, 0),
-      ...mapTopics(analysis.needs_review, 'weakness', true, sCount),
-      ...mapTopics(analysis.weaknesses, 'weakness', false, sCount + nCount),
+      ...mapTopics(analysis.strengths, 'strength', 0),
+      ...mapTopics(analysis.needs_review, 'weakness', sCount),
+      ...mapTopics(analysis.weaknesses, 'weakness', sCount + nCount),
     ];
   }
 

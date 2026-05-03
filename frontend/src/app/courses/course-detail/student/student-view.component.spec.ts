@@ -138,6 +138,27 @@ describe('StudentView', () => {
     expect(text).toContain('No analyzed exam data is available yet.');
   });
 
+  it('hides headline subtitle when analysis has empty headline', async () => {
+    const analysis: ExamAnalysisSummary = {
+      headline: '',
+      overall_score_pct: 0.75,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
+    };
+    const { fixture } = await setup({ latestAnalysis: analysis });
+
+    // The @if (examAnalysis()!.headline) block should not render when headline is empty
+    // The "Latest Exam Analysis" card has a mat-card-header; no subtitle should be inside it
+    const allCards = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-card') as NodeListOf<HTMLElement>,
+    );
+    const analysisCard = allCards.find((card) =>
+      card.textContent?.includes('Latest Exam Analysis'),
+    );
+    expect(analysisCard?.querySelector('mat-card-subtitle')).toBeNull();
+  });
+
   it('shows an error when course id is missing', async () => {
     const { fixture, jobUpdateService } = await setup({ courseId: null });
 
@@ -318,5 +339,141 @@ describe('StudentView', () => {
 
     expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);
     expect(fixture.nativeElement.textContent).toContain('Analysis from getLatestAnalysis');
+  });
+
+  it('ignores job updates that are not completed exam_analysis kind', async () => {
+    const { fixture, gradingAnalyzerService, updatesSignal } = await setup({
+      latestAnalysis: null,
+    });
+
+    gradingAnalyzerService.getLatestAnalysis.mockClear();
+
+    // Fire an update that is NOT a completed exam_analysis — should not trigger refresh
+    updatesSignal.set(
+      new Map([
+        [
+          88,
+          {
+            job_id: 88,
+            course_id: 1,
+            user_id: 111111111,
+            kind: 'exam_analysis',
+            status: 'pending',
+          },
+        ],
+      ]),
+    );
+
+    await flush();
+    fixture.detectChanges();
+
+    expect(gradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('ignores duplicate completed job updates already tracked', async () => {
+    const refreshAnalysis: ExamAnalysisSummary = {
+      headline: 'First refresh',
+      overall_score_pct: 0.94,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
+    };
+
+    const { fixture, gradingAnalyzerService, updatesSignal } = await setup({
+      latestAnalysis: null,
+    });
+
+    gradingAnalyzerService.getLatestAnalysis.mockResolvedValue(refreshAnalysis);
+
+    const update = {
+      job_id: 99,
+      course_id: 1,
+      user_id: 111111111,
+      kind: 'exam_analysis' as const,
+      status: 'completed' as const,
+    };
+
+    // First trigger — should refresh
+    updatesSignal.set(new Map([[99, update]]));
+    await flush();
+    await flush();
+    fixture.detectChanges();
+
+    const callsAfterFirst = gradingAnalyzerService.getLatestAnalysis.mock.calls.length;
+
+    // Same job id again — should NOT refresh again (already tracked)
+    updatesSignal.set(new Map([[99, update]]));
+    await flush();
+    await flush();
+    fixture.detectChanges();
+
+    expect(gradingAnalyzerService.getLatestAnalysis.mock.calls.length).toBe(callsAfterFirst);
+  });
+
+  it('uses the default POLL_CONFIG factory when no override is provided', () => {
+    // Instantiate without a custom POLL_CONFIG so the default factory runs
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [StudentView],
+      providers: [
+        { provide: PageTitleService, useValue: { setTitle: vi.fn() } },
+        { provide: LayoutNavigationService, useValue: { clearContext: vi.fn() } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: new Map() },
+            parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
+          },
+        },
+        {
+          provide: GradingAnalyzerService,
+          useValue: { getLatestAnalysis: vi.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: JobUpdateService,
+          useValue: {
+            subscribe: vi.fn(),
+            unsubscribe: vi.fn(),
+            updatesForCourse: vi.fn(() => signal(new Map()).asReadonly()),
+          },
+        },
+        // No POLL_CONFIG override — exercises the default factory
+      ],
+    });
+
+    const fixture = TestBed.createComponent(StudentView);
+    // If the factory ran correctly, the component creates without throwing
+    expect(fixture).toBeTruthy();
+  });
+
+  it('shows loading progress bar via analysisLoading signal', async () => {
+    const { fixture } = await setup({ uploadId: '42', pollAnalysis: null });
+
+    // Manually trigger loading to cover the @if (loading()) branch in the template
+    // loading signal starts false and is never set by the component, so we set it directly.
+
+    const instance = fixture.componentInstance as unknown as {
+      loading: { set: (v: boolean) => void };
+    };
+    instance.loading.set(true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('mat-progress-bar')).not.toBeNull();
+  });
+
+  it('examAnalysisTopics returns empty array when examAnalysis is null', async () => {
+    const { fixture } = await setup({ latestAnalysis: null });
+
+    // examAnalysis() is null → examAnalysisTopics() should return []
+    const instance = fixture.componentInstance as unknown as {
+      examAnalysisTopics: () => unknown[];
+      applyAnalysis: (analysis: null) => void;
+      topics: () => unknown[];
+    };
+    expect(instance.examAnalysisTopics()).toEqual([]);
+
+    // Also cover the applyAnalysis(null) path to hit the ternary false branch
+    instance.applyAnalysis(null);
+    expect(instance.topics()).toEqual([]);
   });
 });

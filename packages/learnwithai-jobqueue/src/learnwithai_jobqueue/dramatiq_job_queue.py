@@ -37,9 +37,9 @@ class DramatiqJobQueue(JobQueue):
 
         add_after_commit_callback(self._session, _dispatch)
 
+
 @dramatiq.actor(max_retries=3)
 def job_queue(payload: dict) -> None:
-    print(f"DEBUG ACTOR: received payload {payload}", flush=True)
     try:
         job: Job = job_adapter(payload)
         handler_class: type[JobHandler[Any]] = get_job_handler_map()[type(job)]

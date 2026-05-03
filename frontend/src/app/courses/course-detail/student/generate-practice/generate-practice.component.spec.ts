@@ -405,4 +405,108 @@ describe('GeneratePractice', () => {
       );
     });
   });
+
+  describe('branch coverage', () => {
+    let stubs: {
+      pageTitle: { setTitle: ReturnType<typeof vi.fn> };
+      layoutNav: { clearContext: ReturnType<typeof vi.fn> };
+      router: RouterStub;
+      api: ApiStub;
+      practiceService: PracticeServiceStub;
+    };
+
+    beforeEach(async () => {
+      stubs = {
+        pageTitle: { setTitle: vi.fn() },
+        layoutNav: { clearContext: vi.fn() },
+        router: { navigate: vi.fn().mockResolvedValue(false) }, // navigate returns false
+        api: { invoke: vi.fn() },
+        practiceService: { generatePractice: vi.fn(), getPractice: vi.fn() },
+      };
+
+      await TestBed.configureTestingModule({
+        imports: [GeneratePractice, NoopAnimationsModule],
+        providers: [
+          { provide: PageTitleService, useValue: stubs.pageTitle },
+          { provide: LayoutNavigationService, useValue: stubs.layoutNav },
+          { provide: ActivatedRoute, useValue: makeRoute('42') },
+          { provide: Router, useValue: stubs.router },
+          { provide: Api, useValue: stubs.api },
+          { provide: PracticeService, useValue: stubs.practiceService },
+        ],
+      }).compileComponents();
+    });
+
+    it('selectedExam returns null when no exam is selected', async () => {
+      stubs.api.invoke.mockResolvedValue(EXAM_LIST);
+      const fixture = TestBed.createComponent(GeneratePractice);
+      fixture.detectChanges();
+      await waitForLoad(fixture);
+      fixture.detectChanges();
+
+      // Access selectedExam directly to cover the ?? null branch
+      const instance = fixture.componentInstance as unknown as GeneratePracticeInstance & {
+        selectedExam: () => unknown;
+      };
+      expect(instance.selectedExam()).toBeNull();
+    });
+
+    it('selectedExam returns the matching exam when one is selected', async () => {
+      stubs.api.invoke.mockResolvedValue(EXAM_LIST);
+      const fixture = TestBed.createComponent(GeneratePractice);
+      fixture.detectChanges();
+      await waitForLoad(fixture);
+      fixture.detectChanges();
+
+      const buttons = fixture.nativeElement.querySelectorAll('button.exam-item');
+      buttons[0].click();
+      fixture.detectChanges();
+
+      const instance = fixture.componentInstance as unknown as GeneratePracticeInstance & {
+        selectedExam: () => unknown;
+      };
+      expect((instance.selectedExam() as ExamPdfHistoryItem).id).toBe(1);
+    });
+
+    it('shows error when navigateToPracticeViewer fails (navigate returns false)', async () => {
+      stubs.api.invoke.mockResolvedValue(EXAM_LIST);
+      stubs.practiceService.generatePractice.mockResolvedValue(PRACTICE_MATERIAL);
+
+      const fixture = TestBed.createComponent(GeneratePractice);
+      fixture.detectChanges();
+      await waitForLoad(fixture);
+      fixture.detectChanges();
+
+      const buttons = fixture.nativeElement.querySelectorAll('button.exam-item');
+      buttons[0].click();
+      fixture.detectChanges();
+
+      const instance = fixture.componentInstance as unknown as GeneratePracticeInstance;
+      await instance.onGenerate();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('Failed to open the practice viewer');
+    });
+
+    it('sleeps between poll attempts when maxAttempts > 1 and materials not ready', async () => {
+      stubs.api.invoke.mockResolvedValue(EXAM_LIST);
+      // First attempt fails, second succeeds
+      stubs.practiceService.getPractice
+        .mockRejectedValueOnce(new Error('not ready'))
+        .mockResolvedValue(PRACTICE_MATERIAL);
+
+      const fixture = TestBed.createComponent(GeneratePractice);
+      fixture.detectChanges();
+      await waitForLoad(fixture);
+      fixture.detectChanges();
+
+      const instance = fixture.componentInstance as unknown as GeneratePracticeInstance;
+      // 2 attempts, 0ms interval — first fails (triggers sleep), second succeeds
+      await instance.pollUntilReady(1, 0, 2);
+      fixture.detectChanges();
+
+      // Should have navigated after second attempt succeeded
+      expect(stubs.router.navigate).toHaveBeenCalled();
+    });
+  });
 });

@@ -212,5 +212,53 @@ describe('PracticeMaterialsComponent', () => {
       const { fixture } = await setup({ materials: { ...STUB_MATERIALS, flashcards: [] } });
       expect(fixture.nativeElement.textContent).toContain('No flashcards available.');
     });
+
+    it('should navigate to next card via button click', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      fixture.nativeElement.querySelector('[data-testid="next-card-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['flashcardIndex']()).toBe(1);
+    });
+
+    it('should navigate to previous card via button click', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['flashcardIndex'].set(1);
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector('[data-testid="prev-card-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['flashcardIndex']()).toBe(0);
+    });
+
+    it('should flip card to back when flip button is clicked via DOM', async () => {
+      const { fixture } = await setup();
+      fixture.nativeElement.querySelector('[data-testid="flip-btn"]').click();
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="flashcard-back"]')?.textContent?.trim(),
+      ).toBe('90 degrees');
+    });
+  });
+
+  it('should return NaN course id when no route ancestor has an id param', async () => {
+    const noIdRoute = {
+      snapshot: {
+        queryParamMap: convertToParamMap({ uploadId: '22' }),
+        paramMap: convertToParamMap({}),
+      },
+      parent: {
+        snapshot: { paramMap: convertToParamMap({}) },
+        parent: null,
+      },
+    };
+    const { fixture } = await setup({
+      extraProviders: [{ provide: ActivatedRoute, useValue: noIdRoute }],
+    });
+    expect(isNaN(fixture.componentInstance['courseId'])).toBe(true);
   });
 });

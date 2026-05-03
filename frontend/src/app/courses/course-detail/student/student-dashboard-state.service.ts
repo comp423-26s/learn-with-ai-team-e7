@@ -20,7 +20,6 @@ import type { ExamAnalysisSummary } from '../../../api/generated/models/exam-ana
 @Injectable({ providedIn: 'root' })
 export class StudentDashboardStateService {
   private readonly cache = new Map<number, ExamAnalysisSummary | null>();
-  private readonly uploadCache = new Map<number, ExamAnalysisSummary | null>();
 
   /**
    * Returns the cached analysis for the given course, or `undefined` when no
@@ -37,19 +36,5 @@ export class StudentDashboardStateService {
   /** Stores (or overwrites) the analysis result for the given course. */
   setAnalysis(courseId: number, analysis: ExamAnalysisSummary | null): void {
     this.cache.set(courseId, analysis);
-  }
-
-  /**
-   * Returns the cached analysis for a specific upload ID, or `undefined` when
-   * no entry has been stored for that upload yet.
-   */
-  getAnalysisByUploadId(uploadId: number): ExamAnalysisSummary | null | undefined {
-    if (!this.uploadCache.has(uploadId)) return undefined;
-    return this.uploadCache.get(uploadId) ?? null;
-  }
-
-  /** Stores (or overwrites) the analysis result for a specific upload ID. */
-  setAnalysisByUploadId(uploadId: number, analysis: ExamAnalysisSummary | null): void {
-    this.uploadCache.set(uploadId, analysis);
   }
 }

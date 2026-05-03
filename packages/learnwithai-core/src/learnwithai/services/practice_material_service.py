@@ -109,7 +109,7 @@ class PracticeMaterialService:
             "1. weak_topics (copy from input)\n"
             "2. questions (array of multiple-choice practice questions)\n"
             "3. flashcards (array of flashcards)\n\n"
-            "Each question object must have: question_text, answer, choices, topic, difficulty.\n"
+            "Each question must have: question_text, answer, choices, topic, difficulty.\n"
             "  - answer: the correct answer as a plain string.\n"
             "  - choices: a list of exactly 4 strings. One must match answer exactly."
             " The other 3 are plausible but wrong."

@@ -4,7 +4,7 @@
  */
 
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { ExamHistory } from './exam-history.component';
 import { PageTitleService } from '../../../../page-title.service';
 import { LayoutNavigationService } from '../../../../layout/layout-navigation.service';
@@ -784,6 +784,116 @@ describe('ExamHistory', () => {
 
       const banner = fixture.nativeElement.querySelector('.student-banner');
       expect(banner).toBeNull();
+    });
+  });
+
+  describe('resolveCachedUploadId branch coverage', () => {
+    it('falls through to most-recent logic when pending upload already has analysis', async () => {
+      const stubs = await configureModule('1', undefined, '1');
+      const uploads: ExamPdfHistoryItem[] = [
+        {
+          id: 1,
+          original_filename: 'analyzed.pdf',
+          uploaded_at: '2026-04-20T00:00:00Z',
+          has_analysis: true, // pendingUpload exists but already has analysis → branch at line 142 is false
+          has_practice: false,
+        },
+      ];
+      stubs.api.invoke.mockResolvedValue(uploads);
+      stubs.dashboardState.getAnalysis.mockReturnValue({
+        headline: 'Cached analysis',
+        overall_score_pct: 0.8,
+        strengths: [],
+        needs_review: [],
+        weaknesses: [],
+      });
+      stubs.gradingAnalyzer.getExamAnalysis.mockResolvedValue(null);
+
+      const fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('analyzed.pdf');
+    });
+
+    it('selects older upload as latest when uploads arrive newest-first', async () => {
+      const stubs = await configureModule('1'); // no uploadId → newUploadId = null
+      const uploads: ExamPdfHistoryItem[] = [
+        {
+          id: 2,
+          original_filename: 'newer.pdf',
+          uploaded_at: '2026-04-20T00:00:00Z', // newest first in array
+          has_analysis: false,
+          has_practice: false,
+        },
+        {
+          id: 1,
+          original_filename: 'older.pdf',
+          uploaded_at: '2026-04-10T00:00:00Z', // older second → hits `: latest` branch in reduce
+          has_analysis: false,
+          has_practice: false,
+        },
+      ];
+      stubs.api.invoke.mockResolvedValue(uploads);
+      stubs.dashboardState.getAnalysis.mockReturnValue({
+        headline: 'Cached for newest',
+        overall_score_pct: 0.85,
+        strengths: [],
+        needs_review: [],
+        weaknesses: [],
+      });
+
+      const fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      // The newest upload (id:2) should receive the cached analysis
+      expect(fixture.nativeElement.textContent).toContain('newer.pdf');
+      expect(fixture.nativeElement.textContent).toContain('Cached for newest');
+    });
+
+    it('updates only the polled entry when multiple entries exist', async () => {
+      const stubs = await configureModule('1', undefined, '1');
+      const uploads: ExamPdfHistoryItem[] = [
+        {
+          id: 1,
+          original_filename: 'pending.pdf',
+          uploaded_at: '2026-04-28T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+        {
+          id: 2,
+          original_filename: 'other.pdf',
+          uploaded_at: '2026-04-20T00:00:00Z',
+          has_analysis: false,
+          has_practice: false,
+        },
+      ];
+      stubs.api.invoke.mockResolvedValue(uploads);
+      stubs.gradingAnalyzer.getExamAnalysis.mockResolvedValue({
+        headline: 'Analysis found!',
+        overall_score_pct: 0.9,
+        strengths: [],
+        needs_review: [],
+        weaknesses: [],
+      });
+
+      const fixture = TestBed.createComponent(ExamHistory);
+      fixture.detectChanges();
+      await waitForHistoryLoad(fixture);
+      fixture.detectChanges();
+
+      const instance = fixture.componentInstance as unknown as ExamHistoryTestInstance;
+      // Poll for upload 1 with 2 entries present — the map callback hits `: e` for entry id:2
+      await instance.pollEntryForAnalysis(1, 0, 1);
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent;
+      expect(text).toContain('Analysis found!');
+      expect(text).toContain('other.pdf'); // entry id:2 stays unchanged
     });
   });
 

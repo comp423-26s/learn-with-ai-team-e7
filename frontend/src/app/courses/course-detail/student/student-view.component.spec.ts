@@ -324,6 +324,91 @@ describe('StudentView', () => {
     expect(gradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
   });
 
+  it('calls POLL_CONFIG factory when no provider override exists', async () => {
+    const analysis: ExamAnalysisSummary = {
+      headline: 'Factory config analysis',
+      overall_score_pct: 0.7,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
+    };
+    const gradingAnalyzerService = {
+      getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
+      getExamAnalysis: vi.fn(() => Promise.resolve(analysis)),
+    };
+    const updatesSignal: WritableSignal<ReadonlyMap<number, JobUpdate>> = signal(new Map());
+    const jobUpdateService = {
+      subscribe: vi.fn(),
+      unsubscribe: vi.fn(),
+      updatesForCourse: vi.fn(
+        () => updatesSignal.asReadonly() as Signal<ReadonlyMap<number, JobUpdate>>,
+      ),
+    };
+
+    TestBed.configureTestingModule({
+      imports: [StudentView],
+      providers: [
+        { provide: PageTitleService, useValue: { setTitle: vi.fn() } },
+        { provide: LayoutNavigationService, useValue: { clearContext: vi.fn() } },
+        { provide: GradingAnalyzerService, useValue: gradingAnalyzerService },
+        { provide: JobUpdateService, useValue: jobUpdateService },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: new Map([['uploadId', '42']]) },
+            parent: { snapshot: { paramMap: new Map([['id', '1']]) } },
+          },
+        },
+        // Intentionally no POLL_CONFIG override — factory function is invoked
+      ],
+    });
+
+    const fixture = TestBed.createComponent(StudentView);
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+    await flush();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Factory config analysis');
+  });
+
+  it('skips refresh for a job id that was already processed', async () => {
+    const { gradingAnalyzerService, updatesSignal, fixture } = await setup({
+      latestAnalysis: {
+        headline: 'Initial analysis',
+        overall_score_pct: 0.8,
+        strengths: [],
+        needs_review: [],
+        weaknesses: [],
+      },
+    });
+
+    const completedUpdate: JobUpdate = {
+      job_id: 77,
+      course_id: 1,
+      user_id: 111111111,
+      kind: 'exam_analysis',
+      status: 'completed',
+    };
+
+    // First firing: job 77 is new — gets added to completedExamJobs and triggers refresh
+    updatesSignal.set(new Map([[77, completedUpdate]]));
+    await flush();
+    await flush();
+    fixture.detectChanges();
+
+    const callsAfterFirst = gradingAnalyzerService.getLatestAnalysis.mock.calls.length;
+
+    // Second firing: job 77 is already in completedExamJobs — hits `continue`, no refresh
+    updatesSignal.set(new Map([[77, completedUpdate]]));
+    await flush();
+    await flush();
+    fixture.detectChanges();
+
+    expect(gradingAnalyzerService.getLatestAnalysis.mock.calls.length).toBe(callsAfterFirst);
+  });
+
   it('calls refreshLatestAnalysis when no uploadId and no cache exists', async () => {
     const refreshedAnalysis: ExamAnalysisSummary = {
       headline: 'Analysis from getLatestAnalysis',

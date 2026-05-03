@@ -26,13 +26,11 @@ class DramatiqJobQueue(JobQueue):
 
     def enqueue(self, job: Job) -> None:
         payload = job.model_dump()
-        print(f"DEBUG ENQUEUE: enqueueing {payload}", flush=True)
         if self._session is None:
             job_queue.send(payload)
             return
 
         def _dispatch() -> None:
-            print(f"DEBUG DISPATCH: sending to dramatiq {payload}", flush=True)
             job_queue.send(payload)
 
         add_after_commit_callback(self._session, _dispatch)

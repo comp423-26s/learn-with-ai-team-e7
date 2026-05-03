@@ -51,9 +51,6 @@ export class GeneratePractice {
   protected readonly generateError = signal('');
 
   protected readonly hasExams = computed(() => this.exams().length > 0);
-  protected readonly selectedExam = computed(
-    () => this.exams().find((e) => e.id === this.selectedUploadId()) ?? null,
-  );
 
   constructor() {
     this.layoutNavigation.clearContext();

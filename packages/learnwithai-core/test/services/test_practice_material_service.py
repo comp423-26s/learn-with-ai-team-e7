@@ -287,21 +287,7 @@ def test_generate_materials_falls_back_with_default_topic_and_empty_excerpt() ->
     )
     practice_material_repo.get_by_upload_id.return_value = None
     practice_material_repo.create.side_effect = lambda material: material
-    ai_completion.complete.return_value = json.dumps(
-        {
-            "upload_id": 999,
-            "weak_topics": ["Ignored"],
-            "questions": [
-                {
-                    "question_text": "How do recursive calls reduce a problem?",
-                    "answer": "They break it into smaller subproblems.",
-                    "topic": "Recursion",
-                    "difficulty": "medium",
-                }
-            ],
-            "flashcards": [{"front": "Recursion: base case?", "back": "The stopping condition.", "topic": "Recursion"}],
-        }
-    )
+    ai_completion.complete.return_value = "not-valid-json"
 
     result = service.generate_materials(upload_id=22, student_pid=123456789, course_id=5)
 
@@ -322,23 +308,43 @@ def test_generate_materials_ignores_duplicate_and_blank_topics_during_fallback()
     exam_text_repo.get_by_upload_id.return_value = _make_text()
     practice_material_repo.get_by_upload_id.return_value = None
     practice_material_repo.create.side_effect = lambda material: material
-    ai_completion.complete.return_value = json.dumps(
-        {
-            "upload_id": 999,
-            "weak_topics": ["Ignored"],
-            "questions": [
-                {
-                    "question_text": "How do recursive calls reduce a problem?",
-                    "answer": "They break it into smaller subproblems.",
-                    "topic": "Recursion",
-                    "difficulty": "medium",
-                }
-            ],
-            "flashcards": [{"front": "Recursion: base case?", "back": "The stopping condition.", "topic": "Recursion"}],
-        }
-    )
+    ai_completion.complete.return_value = "not-valid-json"
 
     result = service.generate_materials(upload_id=22, student_pid=123456789, course_id=5)
+
+    created_material = practice_material_repo.create.call_args.args[0]
+    assert result is created_material
+    assert created_material.material_data["weak_topics"] == ["Recursion", "Trees"]
+    assert len(created_material.material_data["questions"]) == 10
+
+
+def test_generate_materials_falls_back_when_json_payload_cannot_be_decoded() -> None:
+    ai_completion, exam_upload_repo, exam_text_repo, practice_material_repo, service = _build_service()
+    exam_upload_repo.get_by_id.return_value = _make_upload()
+    exam_text_repo.get_by_upload_id.return_value = _make_text()
+    practice_material_repo.get_by_upload_id.return_value = None
+    practice_material_repo.create.side_effect = lambda material: material
+    # Starts and ends with braces so _extract_json_object returns it, but json.loads fails
+    ai_completion.complete.return_value = "{ bad json }"
+
+    result = service.generate_materials(upload_id=22, student_pid=123456789, course_id=5)
+
+    created_material = practice_material_repo.create.call_args.args[0]
+    assert result is created_material
+    assert created_material.material_data["weak_topics"] == ["Recursion", "Trees"]
+    assert len(created_material.material_data["questions"]) == 10
+
+
+def test_generate_materials_falls_back_when_json_payload_is_not_a_dict() -> None:
+    ai_completion, exam_upload_repo, exam_text_repo, practice_material_repo, service = _build_service()
+    exam_upload_repo.get_by_id.return_value = _make_upload()
+    exam_text_repo.get_by_upload_id.return_value = _make_text()
+    practice_material_repo.get_by_upload_id.return_value = None
+    practice_material_repo.create.side_effect = lambda material: material
+    # _extract_json_object returns a JSON array string so json.loads produces a list, not a dict
+    with patch.object(service, "_extract_json_object", return_value="[1, 2, 3]"):
+        ai_completion.complete.return_value = "dummy"
+        result = service.generate_materials(upload_id=22, student_pid=123456789, course_id=5)
 
     created_material = practice_material_repo.create.call_args.args[0]
     assert result is created_material

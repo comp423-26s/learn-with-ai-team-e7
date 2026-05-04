@@ -177,6 +177,7 @@ export class StudentView implements OnDestroy {
       label: TopicLabel,
       feedbackAvailable: boolean,
       idOffset: number,
+      feedbackAvailable: boolean,
     ): StudentTopicAnalysis[] =>
       topics.map((t, i) => ({
         id: -(idOffset + i + 1),
@@ -190,9 +191,9 @@ export class StudentView implements OnDestroy {
     const nCount = analysis.needs_review.length;
 
     return [
-      ...mapTopics(analysis.strengths, 'strength', true, 0),
-      ...mapTopics(analysis.needs_review, 'weakness', true, sCount),
-      ...mapTopics(analysis.weaknesses, 'weakness', false, sCount + nCount),
+      ...mapTopics(analysis.strengths, 'strength', 0, true),
+      ...mapTopics(analysis.needs_review, 'weakness', sCount, false),
+      ...mapTopics(analysis.weaknesses, 'weakness', sCount + nCount, false),
     ];
   }
 

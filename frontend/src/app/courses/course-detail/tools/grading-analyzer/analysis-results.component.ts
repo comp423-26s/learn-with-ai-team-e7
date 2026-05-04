@@ -1,7 +1,6 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  InjectionToken,
   OnInit,
   computed,
   inject,
@@ -18,12 +17,6 @@ import { PracticeService } from '../practice.service';
 import { StudentDashboardStateService } from '../../student/student-dashboard-state.service';
 import type { TopicSummaryLine } from '../../../../api/generated/models/topic-summary-line';
 import type { PracticeMaterialResponse } from '../../../../api/generated/models/practice-material-response';
-import type { ExamAnalysisSummary } from '../../../../api/generated/models/exam-analysis-summary';
-
-export const ANALYSIS_POLL_CONFIG = new InjectionToken<{ intervalMs: number; maxAttempts: number }>(
-  'ANALYSIS_POLL_CONFIG',
-  { providedIn: 'root', factory: () => ({ intervalMs: 2000, maxAttempts: 30 }) },
-);
 
 @Component({
   selector: 'app-analysis-results',
@@ -39,7 +32,6 @@ export class AnalysisResultsComponent implements OnInit {
   private readonly practiceService = inject(PracticeService);
   private readonly titleService = inject(PageTitleService);
   private readonly dashboardState = inject(StudentDashboardStateService);
-  private readonly pollConfig = inject(ANALYSIS_POLL_CONFIG);
 
   // ── existing signals ──────────────────────────────────────────────────────
   protected readonly loading = signal(true);
@@ -77,11 +69,12 @@ export class AnalysisResultsComponent implements OnInit {
 
     this.uploadId.set(uploadId);
 
-    let analysis = await this.pollForAnalysis(uploadId);
+    let analysis = await this.gradingAnalyzerService.getExamAnalysis(this.courseId, uploadId);
 
-    // if polling timed out, try dashboard cache as fallback keyed by upload id
+    // if polling failed, try dashboard cache as fallback (useful if cache was populated
+    // from a recent exam upload while this page was loading)
     if (!analysis) {
-      analysis = this.dashboardState.getAnalysisByUploadId(uploadId) ?? null;
+      analysis = this.dashboardState.getAnalysis(this.courseId) ?? null;
     }
 
     if (analysis === null) {
@@ -133,16 +126,6 @@ export class AnalysisResultsComponent implements OnInit {
     } finally {
       this.generatingPractice.set(false);
     }
-  }
-
-  private async pollForAnalysis(uploadId: number): Promise<ExamAnalysisSummary | null> {
-    const { intervalMs, maxAttempts } = this.pollConfig;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const analysis = await this.gradingAnalyzerService.getExamAnalysis(this.courseId, uploadId);
-      if (analysis !== null) return analysis;
-      await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
-    }
-    return null;
   }
 
   private async pollUntilComplete(

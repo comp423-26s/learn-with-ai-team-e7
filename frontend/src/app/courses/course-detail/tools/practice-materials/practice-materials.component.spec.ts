@@ -19,7 +19,20 @@ const STUB_MATERIALS: PracticeMaterialResponse = {
     { front: 'What is a right angle?', back: '90 degrees', topic: 'Geometry' },
     { front: 'What is sin(90)?', back: '1', topic: 'Trigonometry' },
   ],
-  questions: [],
+  questions: [
+    {
+      question_text: 'What is a right angle?',
+      answer: '90 degrees',
+      topic: 'Geometry',
+      difficulty: 'easy',
+    },
+    {
+      question_text: 'What is sin(90)?',
+      answer: '1',
+      topic: 'Trigonometry',
+      difficulty: 'medium',
+    },
+  ],
 };
 
 describe('PracticeMaterialsComponent', () => {
@@ -120,8 +133,9 @@ describe('PracticeMaterialsComponent', () => {
 
     it('should flip to show back of card', async () => {
       const { fixture } = await setup();
+      const component = fixture.componentInstance;
 
-      fixture.nativeElement.querySelector('[data-testid="flip-btn"]').click();
+      component['onFlip']();
       fixture.detectChanges();
 
       expect(
@@ -132,9 +146,10 @@ describe('PracticeMaterialsComponent', () => {
 
     it('should flip back to front when flipped again', async () => {
       const { fixture } = await setup();
+      const component = fixture.componentInstance;
 
-      fixture.nativeElement.querySelector('[data-testid="flip-btn"]').click();
-      fixture.nativeElement.querySelector('[data-testid="flip-btn"]').click();
+      component['onFlip']();
+      component['onFlip']();
       fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector('[data-testid="flashcard-front"]')).not.toBeNull();
@@ -145,8 +160,7 @@ describe('PracticeMaterialsComponent', () => {
       const component = fixture.componentInstance;
 
       component['flipped'].set(true);
-      fixture.detectChanges();
-      fixture.nativeElement.querySelector('[data-testid="next-card-btn"]').click();
+      component['onNextCard']();
       fixture.detectChanges();
 
       expect(component['flashcardIndex']()).toBe(1);
@@ -172,8 +186,7 @@ describe('PracticeMaterialsComponent', () => {
 
       component['flashcardIndex'].set(1);
       component['flipped'].set(true);
-      fixture.detectChanges();
-      fixture.nativeElement.querySelector('[data-testid="prev-card-btn"]').click();
+      component['onPrevCard']();
       fixture.detectChanges();
 
       expect(component['flashcardIndex']()).toBe(0);
@@ -212,41 +225,53 @@ describe('PracticeMaterialsComponent', () => {
       const { fixture } = await setup({ materials: { ...STUB_MATERIALS, flashcards: [] } });
       expect(fixture.nativeElement.textContent).toContain('No flashcards available.');
     });
+
+    it('should navigate to next card via button click', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      fixture.nativeElement.querySelector('[data-testid="next-card-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['flashcardIndex']()).toBe(1);
+    });
+
+    it('should navigate to previous card via button click', async () => {
+      const { fixture } = await setup();
+      const component = fixture.componentInstance;
+
+      component['flashcardIndex'].set(1);
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector('[data-testid="prev-card-btn"]').click();
+      fixture.detectChanges();
+
+      expect(component['flashcardIndex']()).toBe(0);
+    });
+
+    it('should flip card to back when flip button is clicked via DOM', async () => {
+      const { fixture } = await setup();
+      fixture.nativeElement.querySelector('[data-testid="flip-btn"]').click();
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('[data-testid="flashcard-back"]')?.textContent?.trim(),
+      ).toBe('90 degrees');
+    });
   });
 
-  it('returns NaN courseId when no ancestor route has an id param', async () => {
-    // Provide a route where no ancestor has an 'id' param → resolveCourseId returns NaN
-    const routeWithNoId = {
+  it('should return NaN course id when no route ancestor has an id param', async () => {
+    const noIdRoute = {
       snapshot: {
-        queryParamMap: new Map([['uploadId', '22']]),
-        paramMap: new Map<string, string>(), // no 'id' here
+        queryParamMap: convertToParamMap({ uploadId: '22' }),
+        paramMap: convertToParamMap({}),
       },
       parent: {
-        snapshot: { paramMap: new Map<string, string>() }, // no 'id' here either
+        snapshot: { paramMap: convertToParamMap({}) },
         parent: null,
       },
     };
-
-    TestBed.resetTestingModule();
-    const practiceServiceMock = {
-      getPractice: vi.fn().mockResolvedValue(STUB_MATERIALS),
-    };
-    TestBed.configureTestingModule({
-      imports: [PracticeMaterialsComponent, NoopAnimationsModule],
-      providers: [
-        provideRouter([]),
-        { provide: PracticeService, useValue: practiceServiceMock },
-        { provide: PageTitleService, useValue: { setTitle: vi.fn() } },
-        { provide: ActivatedRoute, useValue: routeWithNoId },
-      ],
+    const { fixture } = await setup({
+      extraProviders: [{ provide: ActivatedRoute, useValue: noIdRoute }],
     });
-
-    const fixture = TestBed.createComponent(PracticeMaterialsComponent);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    // Component should still load (courseId=NaN passed to getPractice but no throw)
-    expect(fixture).toBeTruthy();
+    expect(isNaN(fixture.componentInstance['courseId'])).toBe(true);
   });
 });

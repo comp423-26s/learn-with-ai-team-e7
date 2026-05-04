@@ -175,7 +175,6 @@ export class StudentView implements OnDestroy {
     const mapTopics = (
       topics: TopicSummaryLine[],
       label: TopicLabel,
-      feedbackAvailable: boolean,
       idOffset: number,
       feedbackAvailable: boolean,
     ): StudentTopicAnalysis[] =>

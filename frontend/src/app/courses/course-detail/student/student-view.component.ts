@@ -65,6 +65,7 @@ export class StudentView implements OnDestroy {
   private readonly courseId = Number(this.route.parent?.snapshot.paramMap.get('id'));
   private readonly completedExamJobs = new Set<number>();
   private readonly courseUpdates: Signal<ReadonlyMap<number, JobUpdate>> | null;
+  private activeUploadId: number | null = null;
 
   protected readonly errorMessage = signal('');
   protected readonly topics = signal<StudentTopicAnalysis[]>([]);
@@ -114,7 +115,7 @@ export class StudentView implements OnDestroy {
           shouldRefresh = true;
         }
         if (shouldRefresh) {
-          void this.refreshLatestAnalysis();
+          void this.refreshAfterExamJobCompletion();
         }
       });
     }
@@ -138,13 +139,14 @@ export class StudentView implements OnDestroy {
     const uploadId = uploadIdParam ? Number(uploadIdParam) : null;
 
     if (uploadId !== null && Number.isFinite(uploadId) && uploadId > 0) {
+      this.activeUploadId = uploadId;
       this.analysisLoading.set(true);
       const analysis = await this.pollForAnalysis(this.courseId, uploadId);
       if (analysis !== null) {
-        this.dashboardState.setAnalysis(this.courseId, analysis);
+        this.dashboardState.setAnalysis(this.courseId, analysis, uploadId);
         this.applyAnalysis(analysis);
       } else {
-        await this.refreshLatestAnalysis();
+        this.applyAnalysis(null);
       }
       this.analysisLoading.set(false);
     } else {
@@ -164,11 +166,29 @@ export class StudentView implements OnDestroy {
   }
 
   private async refreshLatestAnalysis(): Promise<void> {
-    const analysis = await this.gradingAnalyzerService.getLatestAnalysis(this.courseId);
-    if (analysis !== null) {
-      this.dashboardState.setAnalysis(this.courseId, analysis);
+    const result = await this.gradingAnalyzerService.getLatestAnalysisResult(this.courseId);
+    if (result !== null) {
+      this.dashboardState.setAnalysis(this.courseId, result.analysis, result.uploadId);
+      this.applyAnalysis(result.analysis);
+      return;
     }
-    this.applyAnalysis(analysis);
+    this.applyAnalysis(null);
+  }
+
+  private async refreshAfterExamJobCompletion(): Promise<void> {
+    if (this.activeUploadId !== null) {
+      const analysis = await this.gradingAnalyzerService.getExamAnalysis(
+        this.courseId,
+        this.activeUploadId,
+      );
+      if (analysis !== null) {
+        this.dashboardState.setAnalysis(this.courseId, analysis, this.activeUploadId);
+        this.applyAnalysis(analysis);
+      }
+      return;
+    }
+
+    await this.refreshLatestAnalysis();
   }
 
   private analysisToTopics(analysis: ExamAnalysisSummary): StudentTopicAnalysis[] {

@@ -72,9 +72,10 @@ export class AnalysisResultsComponent implements OnInit {
     let analysis = await this.gradingAnalyzerService.getExamAnalysis(this.courseId, uploadId);
 
     // if polling failed, try dashboard cache as fallback (useful if cache was populated
-    // from a recent exam upload while this page was loading)
+    // from this exact upload while this page was loading)
     if (!analysis) {
-      analysis = this.dashboardState.getAnalysis(this.courseId) ?? null;
+      const cached = this.dashboardState.getCachedAnalysis(this.courseId);
+      analysis = cached?.uploadId === uploadId ? cached.analysis : null;
     }
 
     if (analysis === null) {

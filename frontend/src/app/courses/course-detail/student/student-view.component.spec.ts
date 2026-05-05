@@ -19,6 +19,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve));
 type SetupOptions = {
   courseId?: string | null;
   uploadId?: string | null;
+  latestUploadId?: number;
   latestAnalysis?: ExamAnalysisSummary | null;
   pollAnalysis?: ExamAnalysisSummary | null;
   cachedAnalysis?: ExamAnalysisSummary | null;
@@ -31,6 +32,13 @@ describe('StudentView', () => {
 
     const gradingAnalyzerService = {
       getLatestAnalysis: vi.fn(() => Promise.resolve(options.latestAnalysis ?? null)),
+      getLatestAnalysisResult: vi.fn(() =>
+        Promise.resolve(
+          options.latestAnalysis
+            ? { uploadId: options.latestUploadId ?? 1, analysis: options.latestAnalysis }
+            : null,
+        ),
+      ),
       getExamAnalysis: vi.fn(() => Promise.resolve(options.pollAnalysis ?? null)),
     };
 
@@ -161,7 +169,7 @@ describe('StudentView', () => {
     });
 
     expect(gradingAnalyzerService.getExamAnalysis).toHaveBeenCalledWith(1, 42);
-    expect(gradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
+    expect(gradingAnalyzerService.getLatestAnalysisResult).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('Freshly analyzed upload');
   });
 
@@ -179,7 +187,7 @@ describe('StudentView', () => {
       latestAnalysis: null,
     });
 
-    expect(gradingAnalyzerService.getLatestAnalysis).not.toHaveBeenCalled();
+    expect(gradingAnalyzerService.getLatestAnalysisResult).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('Cached exam analysis');
   });
 
@@ -212,7 +220,10 @@ describe('StudentView', () => {
     });
 
     // Replace the mock implementation mid-test to return refreshAnalysis on next call
-    gradingAnalyzerService.getLatestAnalysis.mockResolvedValueOnce(refreshAnalysis);
+    gradingAnalyzerService.getLatestAnalysisResult.mockResolvedValueOnce({
+      uploadId: 99,
+      analysis: refreshAnalysis,
+    });
 
     updatesSignal.set(
       new Map([
@@ -236,6 +247,92 @@ describe('StudentView', () => {
     expect(fixture.nativeElement.textContent).toContain('Updated from realtime completion');
   });
 
+  it('refreshes the active upload when its exam analysis job completes', async () => {
+    const uploadAnalysis: ExamAnalysisSummary = {
+      headline: 'Specific upload completed',
+      overall_score_pct: 0.91,
+      strengths: [],
+      needs_review: [],
+      weaknesses: [],
+    };
+
+    const { fixture, gradingAnalyzerService, updatesSignal } = await setup({
+      uploadId: '42',
+      pollAnalysis: null,
+      latestAnalysis: {
+        headline: 'Stale latest analysis',
+        overall_score_pct: 0.5,
+        strengths: [],
+        needs_review: [],
+        weaknesses: [],
+      },
+    });
+
+    gradingAnalyzerService.getExamAnalysis.mockResolvedValueOnce(uploadAnalysis);
+
+    updatesSignal.set(
+      new Map([
+        [
+          78,
+          {
+            job_id: 78,
+            course_id: 1,
+            user_id: 111111111,
+            kind: 'exam_analysis',
+            status: 'completed',
+          },
+        ],
+      ]),
+    );
+
+    await flush();
+    await flush();
+    fixture.detectChanges();
+
+    expect(gradingAnalyzerService.getLatestAnalysisResult).not.toHaveBeenCalled();
+    expect(gradingAnalyzerService.getExamAnalysis).toHaveBeenLastCalledWith(1, 42);
+    expect(fixture.nativeElement.textContent).toContain('Specific upload completed');
+    expect(fixture.nativeElement.textContent).not.toContain('Stale latest analysis');
+  });
+
+  it('keeps waiting state empty when active upload completion has no analysis yet', async () => {
+    const { fixture, gradingAnalyzerService, updatesSignal } = await setup({
+      uploadId: '42',
+      pollAnalysis: null,
+      latestAnalysis: {
+        headline: 'Stale latest analysis',
+        overall_score_pct: 0.5,
+        strengths: [],
+        needs_review: [],
+        weaknesses: [],
+      },
+    });
+
+    gradingAnalyzerService.getExamAnalysis.mockResolvedValueOnce(null);
+
+    updatesSignal.set(
+      new Map([
+        [
+          79,
+          {
+            job_id: 79,
+            course_id: 1,
+            user_id: 111111111,
+            kind: 'exam_analysis',
+            status: 'completed',
+          },
+        ],
+      ]),
+    );
+
+    await flush();
+    await flush();
+    fixture.detectChanges();
+
+    expect(gradingAnalyzerService.getLatestAnalysisResult).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('Stale latest analysis');
+  });
+
   it('subscribes and unsubscribes job updates for the course', async () => {
     const { fixture, jobUpdateService } = await setup();
 
@@ -246,7 +343,7 @@ describe('StudentView', () => {
     expect(jobUpdateService.unsubscribe).toHaveBeenCalledWith(1);
   });
 
-  it('falls back to refreshLatestAnalysis when uploadId polling returns null', async () => {
+  it('does not show stale latest analysis when uploadId polling returns null', async () => {
     const refreshedAnalysis: ExamAnalysisSummary = {
       headline: 'Refreshed from getLatestAnalysis',
       overall_score_pct: 0.85,
@@ -262,8 +359,9 @@ describe('StudentView', () => {
     });
 
     expect(gradingAnalyzerService.getExamAnalysis).toHaveBeenCalledWith(1, 42);
-    expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);
-    expect(fixture.nativeElement.textContent).toContain('Refreshed from getLatestAnalysis');
+    expect(gradingAnalyzerService.getLatestAnalysisResult).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('Refreshed from getLatestAnalysis');
+    expect(fixture.nativeElement.textContent).toContain('No analyzed exam data is available yet.');
   });
 
   it('calls POLL_CONFIG factory when no provider override exists', async () => {
@@ -276,6 +374,7 @@ describe('StudentView', () => {
     };
     const gradingAnalyzerService = {
       getLatestAnalysis: vi.fn(() => Promise.resolve(null)),
+      getLatestAnalysisResult: vi.fn(() => Promise.resolve(null)),
       getExamAnalysis: vi.fn(() => Promise.resolve(analysis)),
     };
     const updatesSignal: WritableSignal<ReadonlyMap<number, JobUpdate>> = signal(new Map());
@@ -340,7 +439,7 @@ describe('StudentView', () => {
     await flush();
     fixture.detectChanges();
 
-    const callsAfterFirst = gradingAnalyzerService.getLatestAnalysis.mock.calls.length;
+    const callsAfterFirst = gradingAnalyzerService.getLatestAnalysisResult.mock.calls.length;
 
     // Second firing: job 77 is already in completedExamJobs — hits `continue`, no refresh
     updatesSignal.set(new Map([[77, completedUpdate]]));
@@ -348,7 +447,7 @@ describe('StudentView', () => {
     await flush();
     fixture.detectChanges();
 
-    expect(gradingAnalyzerService.getLatestAnalysis.mock.calls.length).toBe(callsAfterFirst);
+    expect(gradingAnalyzerService.getLatestAnalysisResult.mock.calls.length).toBe(callsAfterFirst);
   });
 
   it('calls refreshLatestAnalysis when no uploadId and no cache exists', async () => {
@@ -364,7 +463,7 @@ describe('StudentView', () => {
       latestAnalysis: refreshedAnalysis,
     });
 
-    expect(gradingAnalyzerService.getLatestAnalysis).toHaveBeenCalledWith(1);
+    expect(gradingAnalyzerService.getLatestAnalysisResult).toHaveBeenCalledWith(1);
     expect(fixture.nativeElement.textContent).toContain('Analysis from getLatestAnalysis');
   });
 

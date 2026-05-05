@@ -29,8 +29,9 @@ describe('StudentDashboardStateService', () => {
 
   it('stores and retrieves an analysis', () => {
     const analysis = makeAnalysis('Great job!');
-    service.setAnalysis(1, analysis);
+    service.setAnalysis(1, analysis, 42);
     expect(service.getAnalysis(1)).toEqual(analysis);
+    expect(service.getCachedAnalysis(1)).toEqual({ uploadId: 42, analysis });
   });
 
   it('stores null and returns null (no analysis available)', () => {

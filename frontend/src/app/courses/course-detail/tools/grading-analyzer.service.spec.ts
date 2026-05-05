@@ -124,6 +124,59 @@ describe('GradingAnalyzerService', () => {
     expect(result?.strengths[0].topic).toBe('Algebra');
   });
 
+  it('getLatestAnalysisResult includes the upload id that owns the analysis', async () => {
+    api.invoke
+      .mockResolvedValueOnce([
+        {
+          id: 8,
+          has_analysis: true,
+          has_practice: false,
+          original_filename: 'exam.pdf',
+          uploaded_at: '',
+        },
+      ])
+      .mockResolvedValueOnce({
+        analysis_data: {
+          headline: 'Upload-specific analysis',
+          overall_score_pct: 0.8,
+          strengths: [],
+          weaknesses: [],
+          needs_review: [],
+        },
+      });
+
+    const result = await service.getLatestAnalysisResult(1);
+
+    expect(result).toEqual({
+      uploadId: 8,
+      analysis: {
+        headline: 'Upload-specific analysis',
+        overall_score_pct: 0.8,
+        strengths: [],
+        weaknesses: [],
+        needs_review: [],
+      },
+    });
+  });
+
+  it('getLatestAnalysisResult returns null when latest analysis fetch returns null', async () => {
+    api.invoke
+      .mockResolvedValueOnce([
+        {
+          id: 8,
+          has_analysis: true,
+          has_practice: false,
+          original_filename: 'exam.pdf',
+          uploaded_at: '',
+        },
+      ])
+      .mockRejectedValueOnce(new Error('analysis not ready'));
+
+    const result = await service.getLatestAnalysisResult(1);
+
+    expect(result).toBeNull();
+  });
+
   it('getLatestAnalysis returns null when no upload has an analysis', async () => {
     api.invoke.mockResolvedValueOnce([
       {

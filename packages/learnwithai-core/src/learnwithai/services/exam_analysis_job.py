@@ -68,8 +68,11 @@ class ExamAnalysisJobHandler(BaseJobHandler[ExamAnalysisJob]):
             exam_pdf_text_repo,
         )
 
+        extracted = exam_pdf_text_repo.get_by_upload_id(job_input.upload_id)
+        extracted_text = extracted.extracted_text if extracted is not None else ""
+
         try:
-            analysis = analysis_service.analyze_upload(job_input.upload_id, [])
+            analysis = analysis_service.analyze_from_text(extracted_text)
             upload.analysis_data = analysis.model_dump()
             exam_pdf_upload_repo.update(upload)
 

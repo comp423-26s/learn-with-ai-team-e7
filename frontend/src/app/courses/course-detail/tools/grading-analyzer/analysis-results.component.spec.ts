@@ -129,7 +129,7 @@ describe('AnalysisResultsComponent', () => {
     };
 
     const dashboardStateService = {
-      getAnalysis: vi.fn().mockReturnValue(cachedAnalysis),
+      getCachedAnalysis: vi.fn().mockReturnValue({ uploadId: 22, analysis: cachedAnalysis }),
     };
 
     const { fixture } = await setup({
@@ -143,6 +143,31 @@ describe('AnalysisResultsComponent', () => {
     expect(el.textContent).toContain('Cached result headline');
     expect(el.textContent).toContain('Algebra');
     expect(el.textContent).not.toContain('Something went wrong');
+  });
+
+  it('does not use cached analysis for a different upload', async () => {
+    const dashboardStateService = {
+      getCachedAnalysis: vi.fn().mockReturnValue({
+        uploadId: 99,
+        analysis: {
+          headline: 'Wrong cached headline',
+          overall_score_pct: 0.85,
+          strengths: [],
+          weaknesses: [],
+          needs_review: [],
+        },
+      }),
+    };
+
+    const { fixture } = await setup({
+      analysis: null,
+      extraProviders: [{ provide: StudentDashboardStateService, useValue: dashboardStateService }],
+    });
+
+    const el: HTMLElement = fixture.nativeElement;
+
+    expect(el.textContent).not.toContain('Wrong cached headline');
+    expect(el.textContent).toContain('Something went wrong processing your exam.');
   });
 
   it('shows empty-state messages when analysis arrays are empty', async () => {

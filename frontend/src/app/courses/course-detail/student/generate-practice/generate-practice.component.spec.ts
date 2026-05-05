@@ -252,6 +252,32 @@ describe('GeneratePractice', () => {
           { queryParams: { uploadId: 1 } },
         );
       });
+
+      it('shows an error when practice viewer navigation fails', async () => {
+        stubs.api.invoke.mockResolvedValue(EXAM_LIST);
+        stubs.practiceService.generatePractice.mockResolvedValue(PRACTICE_MATERIAL);
+        stubs.router.navigate.mockResolvedValueOnce(false);
+
+        const fixture = TestBed.createComponent(GeneratePractice);
+        fixture.detectChanges();
+        await waitForLoad(fixture);
+        fixture.detectChanges();
+
+        const buttons = fixture.nativeElement.querySelectorAll('button.exam-item');
+        buttons[0].click();
+        fixture.detectChanges();
+
+        const generateBtn = fixture.nativeElement.querySelector('[data-testid="generate-btn"]');
+        generateBtn.click();
+        fixture.detectChanges();
+
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain(
+          'Failed to open the practice viewer. Please try again.',
+        );
+      });
     });
 
     describe('generation flow — job queued', () => {
